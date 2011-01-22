@@ -14,6 +14,8 @@ import javax.ws.rs.core.Context;
 import javax.ws.rs.core.Response;
 import javax.ws.rs.core.UriInfo;
 
+import static net.hamnaberg.confluence.ConfluenceUtil.*;
+
 /**
  * Created by IntelliJ IDEA.
  * User: maedhros
@@ -39,8 +41,9 @@ public class Services {
         Collection collection = spaces.addCollection("spaces", info.getBaseUriBuilder().path(SpaceFeed.class).build().toString());
         Categories categories = abdera.newCategories();
         categories.setFixed(true);
-        categories.addCategory("page");
-        categories.addCategory("space");
+        categories.addCategory(createCategory(PAGE_TERM));
+        categories.addCategory(createCategory(SPACE_TERM));
+        categories.addCategory(createCategory(COMMENT_TERM));
         collection.addCategories(categories);
         return Response.ok(new AbderaResponseOutput(service)).build();
     }

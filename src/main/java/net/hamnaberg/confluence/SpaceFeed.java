@@ -16,11 +16,12 @@ import javax.ws.rs.*;
 import javax.ws.rs.core.*;
 import java.util.*;
 
-@Path("space")
+@Path("spaces")
 @AnonymousAllowed
 @Produces("application/atom+xml")
 @Consumes("application/atom+xml")
 public class SpaceFeed {
+    protected static final String PAGES_SEGMENT = "pages";
 
     // We just have to define the variables and the setters, then Spring injects the correct objects for us to use. Simple and efficient.
     // You just need to know *what* you want to inject and use.
@@ -54,7 +55,7 @@ public class SpaceFeed {
             Entry entry = abdera.newEntry();
             entry.setId("urn:confluence:space:id:" + space.getId());
             entry.setTitle(space.getName());
-            entry.addCategory("space");
+            entry.addCategory(ConfluenceUtil.createCategory(ConfluenceUtil.SPACE_TERM));
             entry.addAuthor(space.getCreatorName());
             entry.setUpdated(space.getLastModificationDate());
             entry.setSummary(wikiStyleRenderer.convertWikiToXHtml(new RenderContext(), space.getDescription().getContent()));
@@ -82,7 +83,7 @@ public class SpaceFeed {
         if (space == null) {
             throw new IllegalArgumentException(String.format("No space called %s found", key));
         }
-        List<Page> pages = new ArrayList<Page>(pageManager.getPages(space, false));
+        List<Page> pages = new ArrayList<Page>(pageManager.getPages(space, true));
         Collections.sort(pages, reverseLastModifiedComporator);
         return Response.ok(new AbderaResponseOutput(generate(space, pages, info.getBaseUriBuilder()))).build();
     }
@@ -101,7 +102,7 @@ public class SpaceFeed {
         return Response.ok(new AbderaResponseOutput(createEntryFromPage(resourceURIBuilder, page))).build();
     }
     
-    @Path("{key}/page/{id}/children")
+    @Path("{key}/pages/{id}/children")
     @GET
     public Response children(@PathParam("key") String key, @PathParam("id") long id, @Context UriInfo info) {
         Page page = pageManager.getPage(id);
@@ -112,7 +113,8 @@ public class SpaceFeed {
             throw new IllegalArgumentException("Trying to get a page which does not belong in the space");
         }
         UriBuilder resourceURIBuilder = getResourceURIBuilder(info.getBaseUriBuilder()).segment(key);
-        return Response.ok(new AbderaResponseOutput(createEntryFromPage(resourceURIBuilder, page))).build();
+        Feed feed = generate(page, page.getChildren(), resourceURIBuilder);
+        return Response.ok(new AbderaResponseOutput(feed)).build();
     }
 
     private Feed generate(EntityObject parent, List<Page> pages, UriBuilder baseURIBuilder) {
@@ -120,7 +122,7 @@ public class SpaceFeed {
         UriBuilder builder;
         if (parent instanceof Page) {
             Page page = (Page) parent;
-            builder = getResourceURIBuilder(baseURIBuilder).segment(page.getSpaceKey()).segment("page").segment(page.getIdAsString());
+            builder = getResourceURIBuilder(baseURIBuilder).segment(page.getSpaceKey()).segment(PAGES_SEGMENT).segment(page.getIdAsString());
             feed.setTitle("Children of " + ((Page) parent).getTitle());
             feed.setId("urn:confluence:page:id:" + parent.getId());
         }
@@ -143,14 +145,14 @@ public class SpaceFeed {
 
     private Entry createEntryFromPage(UriBuilder resourceURIBuilder, Page page) {
         Entry entry = abdera.newEntry();
-        UriBuilder builder = resourceURIBuilder.segment("page").segment(page.getIdAsString());
+        UriBuilder builder = resourceURIBuilder.segment(PAGES_SEGMENT).segment(page.getIdAsString());
         if (page.hasChildren()) {
             entry.addLink(builder.clone().segment("children").build().toString(), "feed");
             //Add rel="feed" to entry
         }
         entry.addLink(page.getUrlPath(), Link.REL_ALTERNATE);
         entry.addLink(builder.build().toString(), Link.REL_SELF);
-        entry.addCategory("page");
+        entry.addCategory(ConfluenceUtil.createCategory(ConfluenceUtil.PAGE_TERM));
         entry.setTitle(page.getTitle());
 
         String name = page.getCreatorName();
