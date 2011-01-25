@@ -90,26 +90,21 @@
       <artifactId>jtidy</artifactId>
       <version>r938</version>
     </dependency>
-    <!--<dependency>
-      <groupId>com.sun.jersey.contribs</groupId>
-      <artifactId>jersey-atom-abdera</artifactId>
-      <version>1.0.2</version>
+    <dependency>
+      <groupId>org.apache.abdera</groupId>
+      <artifactId>abdera-extensions-opensearch</artifactId>
+      <version>1.1.1</version>
       <exclusions>
         <exclusion>
-          <groupId>org.apache.abdera</groupId>
-          <artifactId>abdera-parser</artifactId>
+            <groupId>org.apache.abdera</groupId>
+            <artifactId>abdera-server</artifactId>
         </exclusion>
         <exclusion>
-          <groupId>org.apache.abdera</groupId>
-          <artifactId>abdera-extensions-json</artifactId>
-        </exclusion>
-        <exclusion>
-          <groupId>com.sun.jersey</groupId>
-          <artifactId>jersey-core</artifactId>
+            <groupId>org.apache.abdera</groupId>
+            <artifactId>abdera-client</artifactId>
         </exclusion>
       </exclusions>
-    </dependency>-->
-
+    </dependency>
   </dependencies>
 
   <build>
