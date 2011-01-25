@@ -22,9 +22,7 @@ public class PagedResultTest {
 
     @Test
     public void firstPageWithFourElements() {
-        PagedResult<String> res = new PagedResult<String>(Arrays.asList("123", "123", "1234", "1244"), 1, 2, UriBuilder.fromPath("/"));
-        List<String> list = res.getList();
-        Assert.assertEquals(Arrays.asList("123", "123"), list);
+        PagedResult res = new PagedResult(4, 1, 2, UriBuilder.fromPath("/"));
         Assert.assertNotNull(res.getNext());
         Assert.assertEquals(String.format(LINK_TEMPLATE, Link.REL_NEXT, 2), res.getNext().toString());
         Assert.assertNull(res.getPrevious());
@@ -34,28 +32,22 @@ public class PagedResultTest {
 
     @Test
     public void secondPageWithFourElements() {
-        PagedResult<String> res = new PagedResult<String>(Arrays.asList("123", "123", "1234", "1244"), 2, 2, UriBuilder.fromPath("/"));
-        List<String> list = res.getList();
+        PagedResult res = new PagedResult(4, 2, 2, UriBuilder.fromPath("/"));
         Assert.assertEquals(4, res.getNextIndex());
         Assert.assertEquals(2, res.getCurrentIndex());
-        Assert.assertEquals(Arrays.asList("1234", "1244"), list);
     }
 
     @Test
     public void listWith5ElementsShouldHaveIndex4OnLastElement() {
-        PagedResult<String> res = new PagedResult<String>(Arrays.asList("123", "123", "1234", "1244", "11243"), 3, 2, UriBuilder.fromPath("/"));
-        List<String> list = res.getList();
+        PagedResult res = new PagedResult(5, 3, 2, UriBuilder.fromPath("/"));
         Assert.assertEquals(5, res.getNextIndex());
         Assert.assertEquals(4, res.getCurrentIndex());
-        Assert.assertEquals(Arrays.asList("11243"), list);
     }
 
     @Test
     public void emptyList() {
-        PagedResult<String> res = new PagedResult<String>(Collections.<String>emptyList(), 1, 2, UriBuilder.fromPath("/"));
-        List<String> list = res.getList();
+        PagedResult res = new PagedResult(0, 1, 2, UriBuilder.fromPath("/"));
         Assert.assertEquals(0, res.getNextIndex());
         Assert.assertEquals(0, res.getCurrentIndex());
-        Assert.assertEquals(Collections.<String>emptyList(), list);
     }
 }

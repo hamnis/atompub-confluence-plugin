@@ -1,10 +1,10 @@
 package net.hamnaberg.confluence;
 
 import org.apache.abdera.Abdera;
+import org.apache.abdera.model.Feed;
 import org.apache.abdera.model.Link;
 
 import javax.ws.rs.core.UriBuilder;
-import java.util.List;
 
 /**
  * Created by IntelliJ IDEA.
@@ -13,8 +13,7 @@ import java.util.List;
  * Time: 5:13 PM
  * To change this template use File | Settings | File Templates.
  */
-public class PagedResult<T> {
-    private List<T> list;
+public class PagedResult {
     private Abdera abdera = Abdera.getInstance();
     private final int pageNo;
     private final int totalPages;
@@ -22,10 +21,10 @@ public class PagedResult<T> {
     private final int pageSize;
     private final UriBuilder baseURIBuilder;
 
-    public PagedResult(List<T> list, int pageNo, int pageSize, UriBuilder baseURIBuilder) {
+    public PagedResult(int size, int pageNo, int pageSize, UriBuilder baseURIBuilder) {
         this.baseURIBuilder = baseURIBuilder.clone();
         this.pageSize = pageSize;
-        this.size = list.size();
+        this.size = size;
         this.totalPages = getTotalPages(pageSize);
         if (pageNo < 1) {
             pageNo = 1;
@@ -34,7 +33,6 @@ public class PagedResult<T> {
             pageNo = totalPages;
         }
         this.pageNo = pageNo;
-        this.list = list.subList(getCurrentIndex(), getNextIndex());
     }
 
     int getTotalPages(int pageSize) {
@@ -100,7 +98,16 @@ public class PagedResult<T> {
         return link;
     }
 
-    public List<T> getList() {
-        return list;
+    public void pouplateLinks(Feed feed) {
+        addLink(getFirst(), feed);
+        addLink(getLast(), feed);
+        addLink(getNext(), feed);
+        addLink(getPrevious(), feed);
+    }
+
+    private void addLink(Link link, Feed feed) {
+        if (link != null) {
+            feed.addLink(link);
+        }
     }
 }

@@ -1,22 +1,32 @@
 package net.hamnaberg.confluence;
 
-import com.atlassian.confluence.pages.PageManager;
+import com.atlassian.confluence.security.SpacePermission;
 import com.atlassian.confluence.spaces.Space;
 import com.atlassian.confluence.spaces.SpaceManager;
+import com.atlassian.confluence.spaces.SpaceType;
+import com.atlassian.confluence.spaces.SpacesQuery;
+import com.atlassian.confluence.user.AuthenticatedUserThreadLocal;
 import com.atlassian.core.bean.EntityObject;
-import com.atlassian.plugins.rest.common.security.AnonymousAllowed;
 import com.atlassian.renderer.RenderContext;
 import com.atlassian.renderer.WikiStyleRenderer;
+import com.atlassian.user.User;
 import org.apache.abdera.Abdera;
-import org.apache.abdera.model.*;
 import org.apache.abdera.model.Collection;
+import org.apache.abdera.model.Entry;
+import org.apache.abdera.model.Feed;
+import org.apache.abdera.model.Link;
 
-import javax.ws.rs.*;
-import javax.ws.rs.core.*;
+import javax.ws.rs.Consumes;
+import javax.ws.rs.GET;
+import javax.ws.rs.Path;
+import javax.ws.rs.Produces;
+import javax.ws.rs.core.Context;
+import javax.ws.rs.core.Response;
+import javax.ws.rs.core.UriBuilder;
+import javax.ws.rs.core.UriInfo;
 import java.util.*;
 
 @Path("spaces")
-@AnonymousAllowed
 @Produces("application/atom+xml")
 @Consumes("application/atom+xml")
 public class SpaceFeed {
@@ -24,14 +34,12 @@ public class SpaceFeed {
     // We just have to define the variables and the setters, then Spring injects the correct objects for us to use. Simple and efficient.
     // You just need to know *what* you want to inject and use.
 
-    private final PageManager pageManager;
     private final SpaceManager spaceManager;
     private final WikiStyleRenderer wikiStyleRenderer;
     private final Abdera abdera = Abdera.getInstance();
     private Comparator<EntityObject> reverseLastModifiedComporator;
 
-    public SpaceFeed(PageManager pageManager, SpaceManager spaceManager, WikiStyleRenderer wikiStyleRenderer) {
-        this.pageManager = pageManager;
+    public SpaceFeed(SpaceManager spaceManager, WikiStyleRenderer wikiStyleRenderer) {
         this.spaceManager = spaceManager;
         this.wikiStyleRenderer = wikiStyleRenderer;
         reverseLastModifiedComporator = Collections.reverseOrder(new LastModificationDateComparator());
@@ -39,13 +47,20 @@ public class SpaceFeed {
 
     @GET
     public Response spaces(@Context UriInfo info) {
+        User user = AuthenticatedUserThreadLocal.getUser();
         Feed feed = abdera.newFeed();
         feed.setId(info.getRequestUri().toString());
         feed.setTitle("Confluence Space feed");
-        feed.setUpdated(new Date());
-        List<Space> spaces = new ArrayList<Space>(spaceManager.getAllSpaces());
+        SpacesQuery query = SpacesQuery.newQuery().forUser(user).withSpaceType(SpaceType.GLOBAL).withPermission(SpacePermission.VIEWSPACE_PERMISSION).build();
+        List<Space> spaces = new ArrayList<Space>(spaceManager.getAllSpaces(query));
         Collections.sort(spaces, reverseLastModifiedComporator);
         UriBuilder uriBuilder = info.getRequestUriBuilder();
+        if (spaces.size() >= 1) {
+            feed.setUpdated(spaces.get(0).getLastModificationDate());
+        }
+        else {
+            feed.setUpdated(new Date());
+        }
         for (Space space : spaces) {
             Entry entry = abdera.newEntry();
             entry.setId("urn:confluence:space:id:" + space.getId());
@@ -55,20 +70,14 @@ public class SpaceFeed {
             entry.setUpdated(space.getLastModificationDate());
             entry.setSummary(wikiStyleRenderer.convertWikiToXHtml(new RenderContext(), space.getDescription().getContent()));
             entry.addLink(space.getHomePage().getUrlPath(), Link.REL_ALTERNATE);
-            feed.addExtension(createCollection(uriBuilder, space, "pages"));
-            feed.addExtension(createCollection(uriBuilder, space, "news"));
+            entry.addExtension(createCollection(uriBuilder, space, "pages"));
+            entry.addExtension(createCollection(uriBuilder, space, "news"));
             //entry.addLink(entry.addLink(uriBuilder.clone().segment(space.getKey()).build().toString(), "feed"));
             feed.addEntry(entry);
         }
-        System.out.println("SpaceFeed.spaces");
         return Response.ok(new AbderaResponseOutput(feed)).build();
     }
-
-/*    @Path("{key}/pages")
-    public PagesFeed pages() {
-        return new PagesFeed(pageManager, spaceManager, wikiStyleRenderer);
-    }
-*/
+    
     private Collection createCollection(UriBuilder uriBuilder, Space space, String name) {
         Collection pageCollection = abdera.getFactory().newCollection();
         pageCollection.acceptsNothing();

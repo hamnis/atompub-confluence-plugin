@@ -39,6 +39,7 @@ public class Services {
         Service service = abdera.newService();
         Workspace spaces = service.addWorkspace("spaces");
         Collection collection = spaces.addCollection("spaces", info.getBaseUriBuilder().path(SpaceFeed.class).build().toString());
+        collection.setAcceptsNothing();
         Categories categories = abdera.newCategories();
         categories.setFixed(true);
         categories.addCategory(createCategory(PAGE_TERM));

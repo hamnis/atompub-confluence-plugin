@@ -1,7 +1,17 @@
 package net.hamnaberg.confluence;
 
+import com.atlassian.bonnie.Searchable;
 import com.atlassian.confluence.pages.Page;
 import com.atlassian.confluence.pages.PageManager;
+import com.atlassian.confluence.search.service.ContentTypeEnum;
+import com.atlassian.confluence.search.v2.ContentSearch;
+import com.atlassian.confluence.search.v2.InvalidSearchException;
+import com.atlassian.confluence.search.v2.SearchManager;
+import com.atlassian.confluence.search.v2.SearchSort;
+import com.atlassian.confluence.search.v2.filter.SubsetResultFilter;
+import com.atlassian.confluence.search.v2.query.ContentTypeQuery;
+import com.atlassian.confluence.search.v2.searchfilter.SpacePermissionsSearchFilter;
+import com.atlassian.confluence.search.v2.sort.ModifiedSort;
 import com.atlassian.confluence.spaces.Space;
 import com.atlassian.confluence.spaces.SpaceManager;
 import com.atlassian.core.bean.EntityObject;
@@ -18,8 +28,6 @@ import javax.ws.rs.core.Response;
 import javax.ws.rs.core.UriBuilder;
 import javax.ws.rs.core.UriInfo;
 import java.util.ArrayList;
-import java.util.Collections;
-import java.util.Comparator;
 import java.util.List;
 
 /**
@@ -30,10 +38,9 @@ import java.util.List;
  * To change this template use File | Settings | File Templates.
  */
 @Path("spaces/{key}/pages")
-@AnonymousAllowed
 @Produces("application/atom+xml")
 @Consumes("application/atom+xml")
-
+@AnonymousAllowed
 public class PagesFeed {
     private static final int PAGE_SIZE = 10;
     private static final String PAGES_SEGMENT = "pages";
@@ -42,14 +49,14 @@ public class PagesFeed {
     private final PageManager pageManager;
     private final SpaceManager spaceManager;
     private final WikiStyleRenderer wikiStyleRenderer;
+    private final SearchManager searchManager;
     private Abdera abdera  = Abdera.getInstance();
-    private Comparator<EntityObject> reverseLastModifiedComporator;
 
-    public PagesFeed(PageManager pageManager, SpaceManager spaceManager, WikiStyleRenderer wikiStyleRenderer) {
+    public PagesFeed(PageManager pageManager, SpaceManager spaceManager, WikiStyleRenderer wikiStyleRenderer, SearchManager searchManager) {
         this.pageManager = pageManager;
         this.spaceManager = spaceManager;
         this.wikiStyleRenderer = wikiStyleRenderer;
-        this.reverseLastModifiedComporator = Collections.reverseOrder(new LastModificationDateComparator());
+        this.searchManager = searchManager;
         tidyCleaner = new TidyCleaner();
     }
 
@@ -59,9 +66,19 @@ public class PagesFeed {
         if (space == null) {
             throw new IllegalArgumentException(String.format("No space called %s found", key));
         }
-        List<Page> pages = new ArrayList<Page>(pageManager.getPages(space, true));
-        Collections.sort(pages, reverseLastModifiedComporator);
-        return Response.ok(new AbderaResponseOutput(generate(space, pages, info.getBaseUriBuilder()))).build();
+        if (pageNo < 1) {
+            pageNo = 1;
+        }
+        try {
+            List<Searchable> searchables = searchManager.searchEntities(new ContentSearch(new ContentTypeQuery(ContentTypeEnum.PAGE), new ModifiedSort(SearchSort.Order.DESCENDING), SpacePermissionsSearchFilter.getInstance(), new SubsetResultFilter(pageNo - 1, PAGE_SIZE)));
+            List<Page> pages = new ArrayList<Page>();
+            for (Searchable page : searchables) {
+                pages.add((Page) page);
+            }
+            return Response.ok(new AbderaResponseOutput(generate(space, pages, info.getBaseUriBuilder()))).build();
+        } catch (InvalidSearchException e) {
+            throw new RuntimeException(e);
+        }
     }
 
     @Path("{id}")
@@ -98,12 +115,12 @@ public class PagesFeed {
         UriBuilder builder;
         if (parent instanceof Page) {
             Page page = (Page) parent;
-            builder = getResourceURIBuilder(baseURIBuilder).segment(page.getSpaceKey()).segment(PAGES_SEGMENT).segment(page.getIdAsString());
+            builder = getResourceURIBuilder(baseURIBuilder).clone().segment(page.getSpaceKey()).segment(PAGES_SEGMENT).segment(page.getIdAsString());
             feed.setTitle("Children of " + ((Page) parent).getTitle());
             feed.setId("urn:confluence:page:id:" + parent.getId());
         } else if (parent instanceof Space) {
             feed.setTitle(((Space) parent).getName());
-            builder = getResourceURIBuilder(baseURIBuilder).segment(((Space) parent).getKey());
+            builder = getResourceURIBuilder(baseURIBuilder).clone().segment(((Space) parent).getKey());
             feed.setId("urn:confluence:space:id:" + parent.getId());
         } else {
             throw new IllegalArgumentException("Unkown parent");
@@ -119,7 +136,7 @@ public class PagesFeed {
 
     private Entry createEntryFromPage(UriBuilder resourceURIBuilder, Page page) {
         Entry entry = abdera.newEntry();
-        UriBuilder builder = resourceURIBuilder.segment(PAGES_SEGMENT).segment(page.getIdAsString());
+        UriBuilder builder = resourceURIBuilder.clone().segment(PAGES_SEGMENT).segment(page.getIdAsString());
         if (page.hasChildren()) {
             entry.addLink(builder.clone().segment("children").build().toString(), "feed");
             //Add rel="feed" to entry
