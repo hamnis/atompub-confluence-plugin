@@ -78,14 +78,25 @@ public class SpaceFeed {
 
     @Path("{key}/pages")
     @GET
-    public Response pages(@PathParam("key") String key, @Context UriInfo info) {
+    public Response pages(@PathParam("key") String key, @Context UriInfo info, @QueryParam("pw") int pageNo) {
         Space space = spaceManager.getSpace(key);
         if (space == null) {
             throw new IllegalArgumentException(String.format("No space called %s found", key));
         }
         List<Page> pages = new ArrayList<Page>(pageManager.getPages(space, true));
+        addPagination(pageNo, pages);
         Collections.sort(pages, reverseLastModifiedComporator);
         return Response.ok(new AbderaResponseOutput(generate(space, pages, info.getBaseUriBuilder()))).build();
+    }
+
+    private List<Page> addPagination(int start, List<Page> pages) {
+        int index = start > 0 ? start : 0;
+        int total = pages.size();
+        int endIndex = index + PAGE_SIZE;
+        if (endIndex > total) {
+            endIndex = total;
+        }
+        return pages.subList(index, endIndex);
     }
 
     @Path("{key}/pages/{id}")
