@@ -1,6 +1,7 @@
 package net.hamnaberg.confluence;
 
 import com.atlassian.bonnie.Searchable;
+import com.atlassian.confluence.core.ListBuilder;
 import com.atlassian.confluence.pages.Page;
 import com.atlassian.confluence.pages.PageManager;
 import com.atlassian.confluence.search.service.ContentTypeEnum;
@@ -58,6 +59,7 @@ public class PagesFeed {
         this.wikiStyleRenderer = wikiStyleRenderer;
         this.searchManager = searchManager;
         tidyCleaner = new TidyCleaner();
+
     }
 
     @GET
@@ -70,12 +72,27 @@ public class PagesFeed {
             pageNo = 1;
         }
         try {
-            List<Searchable> searchables = searchManager.searchEntities(new ContentSearch(new ContentTypeQuery(ContentTypeEnum.PAGE), new ModifiedSort(SearchSort.Order.DESCENDING), SpacePermissionsSearchFilter.getInstance(), new SubsetResultFilter(pageNo - 1, PAGE_SIZE)));
+            ListBuilder<Page> topLevelPagesBuilder = pageManager.getTopLevelPagesBuilder(space);
+            int availableSize = topLevelPagesBuilder.getAvailableSize();
+            PagedResult result = new PagedResult(availableSize, pageNo, PAGE_SIZE, info.getBaseUriBuilder());
+            List<Searchable> searchables = searchManager.searchEntities(
+                    new ContentSearch(
+                            new ContentTypeQuery(ContentTypeEnum.PAGE),
+                            new ModifiedSort(SearchSort.Order.DESCENDING),
+                            SpacePermissionsSearchFilter.getInstance(),
+                            new SubsetResultFilter(pageNo - 1, PAGE_SIZE)
+                    )
+            );
             List<Page> pages = new ArrayList<Page>();
-            for (Searchable page : searchables) {
-                pages.add((Page) page);
+            for (Searchable res : searchables) {
+                Page page = (Page) res;
+                if (page.getParent() == null) {
+                    pages.add(page);
+                }
             }
-            return Response.ok(new AbderaResponseOutput(generate(space, pages, info.getBaseUriBuilder()))).build();
+            Feed feed = generate(space, pages, info.getBaseUriBuilder());
+            result.populate(feed);
+            return Response.ok(new AbderaResponseOutput(feed)).build();
         } catch (InvalidSearchException e) {
             throw new RuntimeException(e);
         }

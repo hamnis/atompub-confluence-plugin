@@ -15,13 +15,13 @@ import java.io.OutputStream;
 * To change this template use File | Settings | File Templates.
 */
 class AbderaResponseOutput implements StreamingOutput {
-    private final Element feed;
+    private final Element element;
 
     public AbderaResponseOutput(Element element) {
-        this.feed = element;
+        this.element = element;
     }
 
     public void write(OutputStream outputStream) throws IOException, WebApplicationException {
-        feed.writeTo(outputStream);
+        element.writeTo(outputStream);
     }
 }

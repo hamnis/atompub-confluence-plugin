@@ -1,6 +1,8 @@
 package net.hamnaberg.confluence;
 
 import org.apache.abdera.Abdera;
+import org.apache.abdera.ext.opensearch.OpenSearchConstants;
+import org.apache.abdera.ext.opensearch.model.IntegerElement;
 import org.apache.abdera.model.Feed;
 import org.apache.abdera.model.Link;
 
@@ -98,11 +100,17 @@ public class PagedResult {
         return link;
     }
 
-    public void pouplateLinks(Feed feed) {
+    public void populate(Feed feed) {
         addLink(getFirst(), feed);
         addLink(getLast(), feed);
         addLink(getNext(), feed);
         addLink(getPrevious(), feed);
+        IntegerElement itemsPerPage = abdera.getFactory().newExtensionElement(OpenSearchConstants.ITEMS_PER_PAGE);
+        itemsPerPage.setValue(pageSize);
+        feed.addExtension(itemsPerPage);
+        IntegerElement totalResults = abdera.getFactory().newExtensionElement(OpenSearchConstants.TOTAL_RESULTS);
+        totalResults.setValue(size);
+        feed.addExtension(totalResults);
     }
 
     private void addLink(Link link, Feed feed) {
