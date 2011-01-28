@@ -8,6 +8,7 @@ import com.atlassian.confluence.spaces.SpacesQuery;
 import com.atlassian.confluence.user.AuthenticatedUserThreadLocal;
 import com.atlassian.core.bean.EntityObject;
 import com.atlassian.renderer.RenderContext;
+import com.atlassian.renderer.RenderContextOutputType;
 import com.atlassian.renderer.WikiStyleRenderer;
 import com.atlassian.user.User;
 import org.apache.abdera.Abdera;
@@ -68,7 +69,9 @@ public class SpaceFeed {
             entry.addCategory(ConfluenceUtil.createCategory(ConfluenceUtil.SPACE_TERM));
             entry.addAuthor(space.getCreatorName());
             entry.setUpdated(space.getLastModificationDate());
-            entry.setSummary(wikiStyleRenderer.convertWikiToXHtml(new RenderContext(), space.getDescription().getContent()));
+            RenderContext renderContext = new RenderContext();
+            renderContext.setOutputType(RenderContextOutputType.HTML_EXPORT);
+            entry.setSummary(wikiStyleRenderer.convertWikiToXHtml(renderContext, space.getDescription().getContent()));
             entry.addLink(space.getHomePage().getUrlPath(), Link.REL_ALTERNATE);
             entry.addExtension(createCollection(uriBuilder, space, "pages"));
             entry.addExtension(createCollection(uriBuilder, space, "news"));
