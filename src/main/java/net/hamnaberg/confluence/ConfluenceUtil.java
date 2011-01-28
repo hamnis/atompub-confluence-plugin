@@ -13,6 +13,7 @@ import org.apache.commons.lang.StringUtils;
  */
 public final class ConfluenceUtil {
     public static final String PAGE_TERM = "page";
+    public static final String NEWS_TERM = "news";
     public static final String SPACE_TERM = "space";
     public static final String COMMENT_TERM = "comment";
     public static final String CONFLUENCE_CATEGORY_SCHEME = "urn:confluence:category";

@@ -44,6 +44,7 @@ public class Services {
         categories.setFixed(true);
         categories.addCategory(createCategory(PAGE_TERM));
         categories.addCategory(createCategory(SPACE_TERM));
+        categories.addCategory(createCategory(NEWS_TERM));
         categories.addCategory(createCategory(COMMENT_TERM));
         collection.addCategories(categories);
         return Response.ok(new AbderaResponseOutput(service)).build();
