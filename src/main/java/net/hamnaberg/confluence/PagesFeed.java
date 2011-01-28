@@ -22,16 +22,14 @@ import com.atlassian.renderer.RenderContextOutputType;
 import com.atlassian.renderer.WikiStyleRenderer;
 import org.apache.abdera.Abdera;
 import org.apache.abdera.i18n.iri.IRI;
-import org.apache.abdera.model.Entry;
-import org.apache.abdera.model.Feed;
-import org.apache.abdera.model.Link;
+import org.apache.abdera.model.*;
 
 import javax.ws.rs.*;
 import javax.ws.rs.core.*;
 import javax.xml.namespace.QName;
+import java.io.InputStream;
 import java.net.URI;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.List;
 
 /**
@@ -117,24 +115,10 @@ public class PagesFeed {
         UriBuilder resourceURIBuilder = getResourceURIBuilder(info.getBaseUriBuilder()).segment(key);
         return Response.ok(new AbderaResponseOutput(createEntryFromPage(resourceURIBuilder, page, path))).build();
     }
-
-    //TODO: Decide if the <content> should have a source, then this is useful.
-    @Path("{id}/content")
-    @GET
-    @Produces({MediaType.TEXT_PLAIN})
-    public Response pageContentTextPlain(@PathParam("key") String key, @PathParam("id") long id, @Context UriInfo info) {
-        return getContent(key, id, info, false);
-    }
-
-    @Path("{id}/content")
-    @GET
-    @Produces({MediaType.APPLICATION_XHTML_XML})
-    public Response pageContentXHTML(@PathParam("key") String key, @PathParam("id") long id, @Context UriInfo info) {
-        return getContent(key, id, info, true);
-    }
-
-    private Response getContent(String key, long id, UriInfo info, boolean xhtml) {
-        URI path = info.getBaseUriBuilder().replacePath("").build();
+    
+    @Path("{id}")
+    @PUT
+    public Response updatePage(@PathParam("key") String key, @PathParam("id") long id, @Context UriInfo info, InputStream stream) {
         Page page = pageManager.getPage(id);
         if (page == null) {
             throw new IllegalArgumentException(String.format("No page with id %s found", id));
@@ -142,18 +126,40 @@ public class PagesFeed {
         if (!page.getSpaceKey().equals(key)) {
             throw new IllegalArgumentException("Trying to get a page which does not belong in the space");
         }
-        if (xhtml) {
-            PageContext context = page.toPageContext();
-            String origType = context.getOutputType();
-            context.setOutputType(RenderContextOutputType.HTML_EXPORT);
-            context.setSiteRoot(path.toString());
-            String value = wikiStyleRenderer.convertWikiToXHtml(context, page.getContent());
-            context.setOutputType(origType);
-            return Response.ok(tidyCleaner.clean(value)).type(MediaType.APPLICATION_XHTML_XML_TYPE).build();
+        Document<Entry> doc = abdera.getParser().parse(stream);
+        Entry entry = doc.getRoot();
+        update(key, entry, page, info);
+        return Response.noContent().build();
+    }
 
+    private void update(String key, Entry entry, Page page, UriInfo info) {
+        URI path = info.getBaseUriBuilder().replacePath("").build();
+        UriBuilder resourceURIBuilder = getResourceURIBuilder(info.getBaseUriBuilder()).segment(key);
+        Entry entryFromPage = createEntryFromPage(resourceURIBuilder, page, path);
+        if (!entryFromPage.getId().equals(entry.getId())) {
+            throw new IllegalArgumentException("Wrong ID specified");
         }
-
-        return Response.ok(page.getContent()).type(MediaType.TEXT_PLAIN_TYPE).build();
+        Content content = entry.getContentElement();
+        if (content == null) {
+            throw new IllegalArgumentException("No Content Specified");
+        }
+        if (content.getSrc() == null) {
+            if (content.getContentType() == Content.Type.TEXT) {
+                //Update content of the page.
+                page.setContent(content.getText());
+            }
+            else {
+                throw new IllegalArgumentException("We only support to update the Confluence format which is served in text/plain.");
+            }
+        }
+        else if (!entryFromPage.getContentElement().getSrc().equals(content.getSrc())) {
+            throw new IllegalArgumentException(String.format("The Content URI was changed; Expected '%s' got '%s'",entryFromPage.getContentElement().getSrc(), content.getSrc()));
+        }
+        Link up = entry.getLink("up");
+        if (!entryFromPage.getLink("up").equals(up)) {
+            throw new IllegalArgumentException(String.format("You are not allowed to move stuff around! (Yet) Parent must not change. Expected %s", entryFromPage.getLink("up")));
+        }
+        //TODO: Consider adding support for moving stuff around... Setting the parent etc.
     }
 
     @Path("{id}/children")
@@ -197,6 +203,43 @@ public class PagesFeed {
             feed.addEntry(createEntryFromPage(spaceURIBuilder, page, hostAndPort));
         }
         return feed;
+    }
+
+    @Path("{id}/content")
+    @GET
+    @Produces({MediaType.TEXT_PLAIN})
+    public Response pageContentTextPlain(@PathParam("key") String key, @PathParam("id") long id, @Context UriInfo info) {
+        return getContent(key, id, info, false);
+    }
+
+    @Path("{id}/content")
+    @GET
+    @Produces({MediaType.APPLICATION_XHTML_XML})
+    public Response pageContentXHTML(@PathParam("key") String key, @PathParam("id") long id, @Context UriInfo info) {
+        return getContent(key, id, info, true);
+    }
+
+    private Response getContent(String key, long id, UriInfo info, boolean xhtml) {
+        URI path = info.getBaseUriBuilder().replacePath("").build();
+        Page page = pageManager.getPage(id);
+        if (page == null) {
+            throw new IllegalArgumentException(String.format("No page with id %s found", id));
+        }
+        if (!page.getSpaceKey().equals(key)) {
+            throw new IllegalArgumentException("Trying to get a page which does not belong in the space");
+        }
+        if (xhtml) {
+            PageContext context = page.toPageContext();
+            String origType = context.getOutputType();
+            context.setOutputType(RenderContextOutputType.HTML_EXPORT);
+            context.setSiteRoot(path.toString());
+            String value = wikiStyleRenderer.convertWikiToXHtml(context, page.getContent());
+            context.setOutputType(origType);
+            return Response.ok(tidyCleaner.clean(value)).type(MediaType.APPLICATION_XHTML_XML_TYPE).build();
+
+        }
+
+        return Response.ok(page.getContent()).type(MediaType.TEXT_PLAIN_TYPE).build();
     }
 
     private Entry createEntryFromPage(UriBuilder spaceURIBuilder, Page page, URI hostAndPort) {
