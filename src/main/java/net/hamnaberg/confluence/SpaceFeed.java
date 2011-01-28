@@ -72,7 +72,8 @@ public class SpaceFeed {
             RenderContext renderContext = new RenderContext();
             renderContext.setOutputType(RenderContextOutputType.HTML_EXPORT);
             entry.setSummary(wikiStyleRenderer.convertWikiToXHtml(renderContext, space.getDescription().getContent()));
-            entry.addLink(space.getHomePage().getUrlPath(), Link.REL_ALTERNATE);
+            Link link = entry.addLink(space.getHomePage().getUrlPath(), Link.REL_ALTERNATE);
+            link.setMimeType("text/html");
             entry.addExtension(createCollection(uriBuilder, space, "pages"));
             entry.addExtension(createCollection(uriBuilder, space, "news"));
             //entry.addLink(entry.addLink(uriBuilder.clone().segment(space.getKey()).build().toString(), "feed"));

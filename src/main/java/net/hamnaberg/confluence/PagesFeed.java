@@ -186,7 +186,8 @@ public class PagesFeed {
             link.setAttributeValue(new QName("http://purl.org/syndication/thread/1.0", "count", "thr"), String.valueOf(page.getChildren().size()));
             //Add rel="feed" to entry
         }
-        entry.addLink(UriBuilder.fromUri(hostAndPort).path(page.getUrlPath()).build().toString(), Link.REL_ALTERNATE);
+        Link link = entry.addLink(UriBuilder.fromUri(hostAndPort).path(page.getUrlPath()).build().toString(), Link.REL_ALTERNATE);
+        link.setMimeType("text/html");
         entry.addLink(builder.build().toString(), Link.REL_SELF);
         entry.addCategory(ConfluenceUtil.createCategory(ConfluenceUtil.PAGE_TERM));
         entry.setTitle(page.getTitle());
