@@ -21,18 +21,17 @@ import com.atlassian.plugins.rest.common.security.AnonymousAllowed;
 import com.atlassian.renderer.RenderContextOutputType;
 import com.atlassian.renderer.WikiStyleRenderer;
 import org.apache.abdera.Abdera;
+import org.apache.abdera.i18n.iri.IRI;
 import org.apache.abdera.model.Entry;
 import org.apache.abdera.model.Feed;
 import org.apache.abdera.model.Link;
 
 import javax.ws.rs.*;
-import javax.ws.rs.core.Context;
-import javax.ws.rs.core.Response;
-import javax.ws.rs.core.UriBuilder;
-import javax.ws.rs.core.UriInfo;
+import javax.ws.rs.core.*;
 import javax.xml.namespace.QName;
 import java.net.URI;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 
 /**
@@ -122,8 +121,20 @@ public class PagesFeed {
     //TODO: Decide if the <content> should have a source, then this is useful.
     @Path("{id}/content")
     @GET
-    @Produces("text/plain")
-    public Response pageContent(@PathParam("key") String key, @PathParam("id") long id) {
+    @Produces({MediaType.TEXT_PLAIN})
+    public Response pageContentTextPlain(@PathParam("key") String key, @PathParam("id") long id, @Context UriInfo info) {
+        return getContent(key, id, info, false);
+    }
+
+    @Path("{id}/content")
+    @GET
+    @Produces({MediaType.APPLICATION_XHTML_XML})
+    public Response pageContentXHTML(@PathParam("key") String key, @PathParam("id") long id, @Context UriInfo info) {
+        return getContent(key, id, info, true);
+    }
+
+    private Response getContent(String key, long id, UriInfo info, boolean xhtml) {
+        URI path = info.getBaseUriBuilder().replacePath("").build();
         Page page = pageManager.getPage(id);
         if (page == null) {
             throw new IllegalArgumentException(String.format("No page with id %s found", id));
@@ -131,7 +142,18 @@ public class PagesFeed {
         if (!page.getSpaceKey().equals(key)) {
             throw new IllegalArgumentException("Trying to get a page which does not belong in the space");
         }
-        return Response.ok(page.getContent()).build();
+        if (xhtml) {
+            PageContext context = page.toPageContext();
+            String origType = context.getOutputType();
+            context.setOutputType(RenderContextOutputType.HTML_EXPORT);
+            context.setSiteRoot(path.toString());
+            String value = wikiStyleRenderer.convertWikiToXHtml(context, page.getContent());
+            context.setOutputType(origType);
+            return Response.ok(tidyCleaner.clean(value)).type(MediaType.APPLICATION_XHTML_XML_TYPE).build();
+
+        }
+
+        return Response.ok(page.getContent()).type(MediaType.TEXT_PLAIN_TYPE).build();
     }
 
     @Path("{id}/children")
@@ -198,16 +220,10 @@ public class PagesFeed {
         }
         entry.addAuthor(name);
         entry.setId("urn:confluence:page:id:" + page.getIdAsString());
-        PageContext context = page.toPageContext();
-        String origType = context.getOutputType();
-        context.setOutputType(RenderContextOutputType.HTML_EXPORT);
-        context.setSiteRoot(hostAndPort.toString());
-        String value = wikiStyleRenderer.convertWikiToXHtml(context, page.getContent());
-        context.setOutputType(origType);
-        entry.setContentAsXhtml(tidyCleaner.clean(value));
         entry.setEdited(page.getLastModificationDate());
         entry.setUpdated(page.getLastModificationDate());
         entry.setPublished(page.getCreationDate());
+        entry.setContent(new IRI(builder.clone().segment("content").build()), MediaType.APPLICATION_XHTML_XML);
         //page.isDeleted() add a tombstone here.
         return entry;
     }

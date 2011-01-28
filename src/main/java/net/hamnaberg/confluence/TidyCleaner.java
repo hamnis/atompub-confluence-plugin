@@ -21,7 +21,7 @@ public class TidyCleaner {
         tidy.setFixComments(false);
         tidy.setHideComments(true);
         tidy.setXHTML(true);
-        tidy.setPrintBodyOnly(true);
+        tidy.setPrintBodyOnly(false);
         //tidy.setWriteback(false);
         tidy.setOnlyErrors(false);
         tidy.setErrout(new PrintWriter(new StringWriter()));

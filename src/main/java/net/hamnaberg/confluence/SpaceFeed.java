@@ -36,13 +36,11 @@ public class SpaceFeed {
     // You just need to know *what* you want to inject and use.
 
     private final SpaceManager spaceManager;
-    private final WikiStyleRenderer wikiStyleRenderer;
     private final Abdera abdera = Abdera.getInstance();
     private Comparator<EntityObject> reverseLastModifiedComporator;
 
-    public SpaceFeed(SpaceManager spaceManager, WikiStyleRenderer wikiStyleRenderer) {
+    public SpaceFeed(SpaceManager spaceManager) {
         this.spaceManager = spaceManager;
-        this.wikiStyleRenderer = wikiStyleRenderer;
         reverseLastModifiedComporator = Collections.reverseOrder(new LastModificationDateComparator());
     }
 
@@ -69,9 +67,7 @@ public class SpaceFeed {
             entry.addCategory(ConfluenceUtil.createCategory(ConfluenceUtil.SPACE_TERM));
             entry.addAuthor(space.getCreatorName());
             entry.setUpdated(space.getLastModificationDate());
-            RenderContext renderContext = new RenderContext();
-            renderContext.setOutputType(RenderContextOutputType.HTML_EXPORT);
-            entry.setSummary(wikiStyleRenderer.convertWikiToXHtml(renderContext, space.getDescription().getContent()));
+            entry.setSummary("");
             Link link = entry.addLink(space.getHomePage().getUrlPath(), Link.REL_ALTERNATE);
             link.setMimeType("text/html");
             entry.addExtension(createCollection(uriBuilder, space, "pages"));
