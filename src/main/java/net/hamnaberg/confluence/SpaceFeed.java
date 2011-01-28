@@ -7,6 +7,7 @@ import com.atlassian.confluence.spaces.SpaceType;
 import com.atlassian.confluence.spaces.SpacesQuery;
 import com.atlassian.confluence.user.AuthenticatedUserThreadLocal;
 import com.atlassian.core.bean.EntityObject;
+import com.atlassian.plugins.rest.common.security.AnonymousAllowed;
 import com.atlassian.renderer.RenderContext;
 import com.atlassian.renderer.RenderContextOutputType;
 import com.atlassian.renderer.WikiStyleRenderer;
@@ -30,6 +31,7 @@ import java.util.*;
 @Path("spaces")
 @Produces("application/atom+xml")
 @Consumes("application/atom+xml")
+@AnonymousAllowed
 public class SpaceFeed {
 
     // We just have to define the variables and the setters, then Spring injects the correct objects for us to use. Simple and efficient.
