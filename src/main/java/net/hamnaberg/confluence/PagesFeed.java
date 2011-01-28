@@ -68,8 +68,7 @@ public class PagesFeed {
 
     @GET
     public Response pages(@PathParam("key") String key, @Context UriInfo info, @QueryParam("pw") int pageNo) {
-        URI uri = info.getBaseUri();
-        System.out.println("uri = " + uri);
+        URI path = info.getBaseUriBuilder().replacePath("").build();
         Space space = spaceManager.getSpace(key);
         if (space == null) {
             throw new IllegalArgumentException(String.format("No space called %s found", key));
@@ -96,7 +95,7 @@ public class PagesFeed {
                     pages.add(page);
                 }
             }
-            Feed feed = generate(space, pages, info.getBaseUriBuilder());
+            Feed feed = generate(space, pages, info.getBaseUriBuilder(), path);
             result.populate(feed);
             return Response.ok(new AbderaResponseOutput(feed)).build();
         } catch (InvalidSearchException e) {
@@ -107,6 +106,7 @@ public class PagesFeed {
     @Path("{id}")
     @GET
     public Response page(@PathParam("key") String key, @PathParam("id") long id, @Context UriInfo info) {
+        URI path = info.getBaseUriBuilder().replacePath("").build();
         Page page = pageManager.getPage(id);
         if (page == null) {
             throw new IllegalArgumentException(String.format("No page with id %s found", id));
@@ -114,8 +114,9 @@ public class PagesFeed {
         if (!page.getSpaceKey().equals(key)) {
             throw new IllegalArgumentException("Trying to get a page which does not belong in the space");
         }
+
         UriBuilder resourceURIBuilder = getResourceURIBuilder(info.getBaseUriBuilder()).segment(key);
-        return Response.ok(new AbderaResponseOutput(createEntryFromPage(resourceURIBuilder, page))).build();
+        return Response.ok(new AbderaResponseOutput(createEntryFromPage(resourceURIBuilder, page, path))).build();
     }
 
     //TODO: Decide if the <content> should have a source, then this is useful.
@@ -136,6 +137,7 @@ public class PagesFeed {
     @Path("{id}/children")
     @GET
     public Response children(@PathParam("key") String key, @PathParam("id") long id, @Context UriInfo info) {
+        URI path = info.getBaseUriBuilder().replacePath("").build();
         Page page = pageManager.getPage(id);
         if (page == null) {
             throw new IllegalArgumentException(String.format("No page with id %s found", id));
@@ -144,11 +146,11 @@ public class PagesFeed {
             throw new IllegalArgumentException("Trying to get a page which does not belong in the space");
         }
         UriBuilder resourceURIBuilder = getResourceURIBuilder(info.getBaseUriBuilder()).segment(key);
-        Feed feed = generate(page, page.getChildren(), resourceURIBuilder);
+        Feed feed = generate(page, page.getChildren(), resourceURIBuilder, path);
         return Response.ok(new AbderaResponseOutput(feed)).build();
     }
 
-    private Feed generate(EntityObject parent, List<Page> pages, UriBuilder baseURIBuilder) {
+    private Feed generate(EntityObject parent, List<Page> pages, UriBuilder baseURIBuilder, URI hostAndPort) {
         Feed feed = abdera.newFeed();
         URI self;
         UriBuilder spaceURIBuilder;
@@ -170,12 +172,12 @@ public class PagesFeed {
         feed.addLink(self.toString(), Link.REL_SELF);
         feed.addLink(getResourceURIBuilder(baseURIBuilder).build().toString(), "up");
         for (Page page : pages) {
-            feed.addEntry(createEntryFromPage(spaceURIBuilder, page));
+            feed.addEntry(createEntryFromPage(spaceURIBuilder, page, hostAndPort));
         }
         return feed;
     }
 
-    private Entry createEntryFromPage(UriBuilder spaceURIBuilder, Page page) {
+    private Entry createEntryFromPage(UriBuilder spaceURIBuilder, Page page, URI hostAndPort) {
         Entry entry = abdera.newEntry();
         UriBuilder builder = spaceURIBuilder.clone().segment(PAGES_SEGMENT).segment(page.getIdAsString());
         if (page.hasChildren()) {
@@ -184,7 +186,7 @@ public class PagesFeed {
             link.setAttributeValue(new QName("http://purl.org/syndication/thread/1.0", "count", "thr"), String.valueOf(page.getChildren().size()));
             //Add rel="feed" to entry
         }
-        entry.addLink(page.getUrlPath(), Link.REL_ALTERNATE);
+        entry.addLink(UriBuilder.fromUri(hostAndPort).path(page.getUrlPath()).build().toString(), Link.REL_ALTERNATE);
         entry.addLink(builder.build().toString(), Link.REL_SELF);
         entry.addCategory(ConfluenceUtil.createCategory(ConfluenceUtil.PAGE_TERM));
         entry.setTitle(page.getTitle());
@@ -198,6 +200,7 @@ public class PagesFeed {
         PageContext context = page.toPageContext();
         String origType = context.getOutputType();
         context.setOutputType(RenderContextOutputType.HTML_EXPORT);
+        context.setSiteRoot(hostAndPort.toString());
         String value = wikiStyleRenderer.convertWikiToXHtml(context, page.getContent());
         context.setOutputType(origType);
         entry.setContentAsXhtml(tidyCleaner.clean(value));
