@@ -12,21 +12,29 @@ import com.atlassian.confluence.search.v2.SearchManager;
 import com.atlassian.confluence.search.v2.SearchSort;
 import com.atlassian.confluence.search.v2.filter.SubsetResultFilter;
 import com.atlassian.confluence.search.v2.query.ContentTypeQuery;
-import com.atlassian.confluence.search.v2.searchfilter.SpacePermissionsSearchFilter;
+import com.atlassian.confluence.search.v2.searchfilter.InSpaceSearchFilter;
 import com.atlassian.confluence.search.v2.sort.ModifiedSort;
+import com.atlassian.confluence.security.Permission;
+import com.atlassian.confluence.security.PermissionManager;
 import com.atlassian.confluence.spaces.Space;
 import com.atlassian.confluence.spaces.SpaceManager;
+import com.atlassian.confluence.user.AuthenticatedUserThreadLocal;
 import com.atlassian.plugins.rest.common.security.AnonymousAllowed;
 import com.atlassian.renderer.RenderContextOutputType;
 import com.atlassian.renderer.WikiStyleRenderer;
+import com.atlassian.user.User;
 import org.apache.abdera.Abdera;
-import org.apache.abdera.model.*;
+import org.apache.abdera.model.Entry;
+import org.apache.abdera.model.Feed;
+import org.apache.abdera.model.Link;
 
 import javax.ws.rs.*;
 import javax.ws.rs.core.*;
 import java.net.URI;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
+import java.util.TreeSet;
 
 /**
 ' * Created by IntelliJ IDEA.
@@ -48,18 +56,22 @@ public class NewsFeed {
     private final SpaceManager spaceManager;
     private final WikiStyleRenderer wikiStyleRenderer;
     private final SearchManager searchManager;
+    private final PermissionManager permissionManager;
     private Abdera abdera  = Abdera.getInstance();
 
-    public NewsFeed(PageManager pageManager, SpaceManager spaceManager, WikiStyleRenderer wikiStyleRenderer, SearchManager searchManager) {
+    public NewsFeed(PageManager pageManager, SpaceManager spaceManager, WikiStyleRenderer wikiStyleRenderer, SearchManager searchManager, PermissionManager permissionManager) {
         this.pageManager = pageManager;
         this.spaceManager = spaceManager;
         this.wikiStyleRenderer = wikiStyleRenderer;
         this.searchManager = searchManager;
+        this.permissionManager = permissionManager;
         tidyCleaner = new TidyCleaner();
     }
 
     @GET
     public Response news(@PathParam("key") String key, @Context UriInfo info, @QueryParam("pw") int pageNo) {
+        User user = AuthenticatedUserThreadLocal.getUser();
+        
         URI path = info.getBaseUriBuilder().replacePath("").build();
         Space space = spaceManager.getSpace(key);
         if (space == null) {
@@ -75,13 +87,15 @@ public class NewsFeed {
                     new ContentSearch(
                             new ContentTypeQuery(ContentTypeEnum.BLOG),
                             new ModifiedSort(SearchSort.Order.DESCENDING),
-                            SpacePermissionsSearchFilter.getInstance(),
+                            new InSpaceSearchFilter(new TreeSet<String>(Arrays.asList(key))),
                             new SubsetResultFilter(pageNo - 1, PAGE_SIZE)
                     )
             );
             List<BlogPost> pages = new ArrayList<BlogPost>();
             for (Searchable res : searchables) {
-                pages.add((BlogPost) res);
+                if (permissionManager.hasPermission(user, Permission.VIEW, res)) {
+                    pages.add((BlogPost) res);
+                }
             }
             Feed feed = generate(space, pages, info.getBaseUriBuilder(), path);
             result.populate(feed);
@@ -93,7 +107,9 @@ public class NewsFeed {
 
     @Path("{id}")
     @GET
-    public Response page(@PathParam("key") String key, @PathParam("id") long id, @Context UriInfo info) {
+    public Response item(@PathParam("key") String key, @PathParam("id") long id, @Context UriInfo info) {
+        User user = AuthenticatedUserThreadLocal.getUser();
+
         URI path = info.getBaseUriBuilder().replacePath("").build();
         BlogPost post = pageManager.getBlogPost(id);
         if (post == null) {
@@ -102,9 +118,11 @@ public class NewsFeed {
         if (!post.getSpaceKey().equals(key)) {
             throw new IllegalArgumentException("Trying to get a page which does not belong in the space");
         }
-
-        UriBuilder resourceURIBuilder = getResourceURIBuilder(info.getBaseUriBuilder()).segment(key);
-        return Response.ok(new AbderaResponseOutput(createEntryFromPage(resourceURIBuilder, post, path))).build();
+        if (permissionManager.hasPermission(user, Permission.VIEW, post)) {
+            UriBuilder resourceURIBuilder = getResourceURIBuilder(info.getBaseUriBuilder()).segment(key);
+            return Response.ok(new AbderaResponseOutput(createEntryFromPage(resourceURIBuilder, post, path))).build();
+        }
+        return Response.status(Response.Status.FORBIDDEN).build();
     }
     
     private Feed generate(Space parent, List<BlogPost> pages, UriBuilder baseURIBuilder, URI hostAndPort) {

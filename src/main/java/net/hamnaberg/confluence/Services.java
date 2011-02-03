@@ -10,6 +10,7 @@ import org.apache.abdera.model.Workspace;
 import javax.ws.rs.GET;
 import javax.ws.rs.Path;
 import javax.ws.rs.Produces;
+import javax.ws.rs.core.CacheControl;
 import javax.ws.rs.core.Context;
 import javax.ws.rs.core.Response;
 import javax.ws.rs.core.UriInfo;
@@ -28,6 +29,11 @@ import static net.hamnaberg.confluence.ConfluenceUtil.*;
 @Produces("application/atomsvc+xml")
 public class Services {
 
+    protected static final CacheControl CACHE_CONTROL = new CacheControl();
+    static {
+        CACHE_CONTROL.setNoTransform(true);
+        CACHE_CONTROL.setMaxAge(24 * 3600);
+    }
     private Abdera abdera;
 
     public Services() {
@@ -47,6 +53,6 @@ public class Services {
         categories.addCategory(createCategory(NEWS_TERM));
         categories.addCategory(createCategory(COMMENT_TERM));
         collection.addCategories(categories);
-        return Response.ok(new AbderaResponseOutput(service)).build();
+        return Response.ok(new AbderaResponseOutput(service)).cacheControl(CACHE_CONTROL).build();
     }
 }

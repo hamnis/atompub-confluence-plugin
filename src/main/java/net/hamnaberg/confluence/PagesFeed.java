@@ -1,6 +1,7 @@
 package net.hamnaberg.confluence;
 
 import com.atlassian.bonnie.Searchable;
+import com.atlassian.confluence.core.DefaultSaveContext;
 import com.atlassian.confluence.core.ListBuilder;
 import com.atlassian.confluence.pages.Page;
 import com.atlassian.confluence.pages.PageManager;
@@ -12,14 +13,18 @@ import com.atlassian.confluence.search.v2.SearchManager;
 import com.atlassian.confluence.search.v2.SearchSort;
 import com.atlassian.confluence.search.v2.filter.SubsetResultFilter;
 import com.atlassian.confluence.search.v2.query.ContentTypeQuery;
-import com.atlassian.confluence.search.v2.searchfilter.SpacePermissionsSearchFilter;
+import com.atlassian.confluence.search.v2.searchfilter.InSpaceSearchFilter;
 import com.atlassian.confluence.search.v2.sort.ModifiedSort;
+import com.atlassian.confluence.security.Permission;
+import com.atlassian.confluence.security.PermissionManager;
 import com.atlassian.confluence.spaces.Space;
 import com.atlassian.confluence.spaces.SpaceManager;
+import com.atlassian.confluence.user.AuthenticatedUserThreadLocal;
 import com.atlassian.core.bean.EntityObject;
 import com.atlassian.plugins.rest.common.security.AnonymousAllowed;
 import com.atlassian.renderer.RenderContextOutputType;
 import com.atlassian.renderer.WikiStyleRenderer;
+import com.atlassian.user.User;
 import org.apache.abdera.Abdera;
 import org.apache.abdera.i18n.iri.IRI;
 import org.apache.abdera.model.*;
@@ -30,7 +35,9 @@ import javax.xml.namespace.QName;
 import java.io.InputStream;
 import java.net.URI;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
+import java.util.TreeSet;
 
 /**
 ' * Created by IntelliJ IDEA.
@@ -52,19 +59,22 @@ public class PagesFeed {
     private final SpaceManager spaceManager;
     private final WikiStyleRenderer wikiStyleRenderer;
     private final SearchManager searchManager;
+    private final PermissionManager permissionManager;
     private Abdera abdera  = Abdera.getInstance();
 
-    public PagesFeed(PageManager pageManager, SpaceManager spaceManager, WikiStyleRenderer wikiStyleRenderer, SearchManager searchManager) {
+    public PagesFeed(PageManager pageManager, SpaceManager spaceManager, WikiStyleRenderer wikiStyleRenderer, SearchManager searchManager, PermissionManager permissionManager) {
         this.pageManager = pageManager;
         this.spaceManager = spaceManager;
         this.wikiStyleRenderer = wikiStyleRenderer;
         this.searchManager = searchManager;
+        this.permissionManager = permissionManager;
         tidyCleaner = new TidyCleaner();
 
     }
 
     @GET
     public Response pages(@PathParam("key") String key, @Context UriInfo info, @QueryParam("pw") int pageNo) {
+        User user = AuthenticatedUserThreadLocal.getUser();
         URI path = info.getBaseUriBuilder().replacePath("").build();
         Space space = spaceManager.getSpace(key);
         if (space == null) {
@@ -81,14 +91,15 @@ public class PagesFeed {
                     new ContentSearch(
                             new ContentTypeQuery(ContentTypeEnum.PAGE),
                             new ModifiedSort(SearchSort.Order.DESCENDING),
-                            SpacePermissionsSearchFilter.getInstance(),
+                            new InSpaceSearchFilter(new TreeSet<String>(Arrays.asList(key))),
                             new SubsetResultFilter(pageNo - 1, PAGE_SIZE)
                     )
             );
             List<Page> pages = new ArrayList<Page>();
             for (Searchable res : searchables) {
                 Page page = (Page) res;
-                if (page.getParent() == null) {
+
+                if (page.getParent() == null && permissionManager.hasPermission(user, Permission.VIEW, page)) {
                     pages.add(page);
                 }
             }
@@ -103,22 +114,31 @@ public class PagesFeed {
     @Path("{id}")
     @GET
     public Response page(@PathParam("key") String key, @PathParam("id") long id, @Context UriInfo info) {
+        User user = AuthenticatedUserThreadLocal.getUser();
         URI path = info.getBaseUriBuilder().replacePath("").build();
         Page page = pageManager.getPage(id);
+
         if (page == null) {
             throw new IllegalArgumentException(String.format("No page with id %s found", id));
         }
         if (!page.getSpaceKey().equals(key)) {
             throw new IllegalArgumentException("Trying to get a page which does not belong in the space");
         }
+        if (permissionManager.hasPermission(user, Permission.VIEW, page)) {
+            UriBuilder resourceURIBuilder = getResourceURIBuilder(info.getBaseUriBuilder()).segment(key);
+            return Response.ok(new AbderaResponseOutput(createEntryFromPage(resourceURIBuilder, page, path))).build();
+        }
+        else {
+            return Response.status(Response.Status.FORBIDDEN).build();
+        }
 
-        UriBuilder resourceURIBuilder = getResourceURIBuilder(info.getBaseUriBuilder()).segment(key);
-        return Response.ok(new AbderaResponseOutput(createEntryFromPage(resourceURIBuilder, page, path))).build();
     }
     
     @Path("{id}")
     @PUT
     public Response updatePage(@PathParam("key") String key, @PathParam("id") long id, @Context UriInfo info, InputStream stream) {
+        User user = AuthenticatedUserThreadLocal.getUser();
+        
         Page page = pageManager.getPage(id);
         if (page == null) {
             throw new IllegalArgumentException(String.format("No page with id %s found", id));
@@ -126,10 +146,13 @@ public class PagesFeed {
         if (!page.getSpaceKey().equals(key)) {
             throw new IllegalArgumentException("Trying to get a page which does not belong in the space");
         }
-        Document<Entry> doc = abdera.getParser().parse(stream);
-        Entry entry = doc.getRoot();
-        update(key, entry, page, info);
-        return Response.noContent().build();
+        if (permissionManager.hasPermission(user, Permission.EDIT, page)) {
+            Document<Entry> doc = abdera.getParser().parse(stream);
+            Entry entry = doc.getRoot();
+            update(key, entry, page, info);
+            return Response.noContent().build();
+        }
+        return Response.status(Response.Status.FORBIDDEN).build();
     }
 
     private void update(String key, Entry entry, Page page, UriInfo info) {
@@ -155,11 +178,15 @@ public class PagesFeed {
         else if (!entryFromPage.getContentElement().getSrc().equals(content.getSrc())) {
             throw new IllegalArgumentException(String.format("The Content URI was changed; Expected '%s' got '%s'",entryFromPage.getContentElement().getSrc(), content.getSrc()));
         }
+        //updating metadata.
         Link up = entry.getLink("up");
         if (!entryFromPage.getLink("up").equals(up)) {
             throw new IllegalArgumentException(String.format("You are not allowed to move stuff around! (Yet) Parent must not change. Expected %s", entryFromPage.getLink("up")));
         }
         //TODO: Consider adding support for moving stuff around... Setting the parent etc.
+        DefaultSaveContext context = new DefaultSaveContext();
+        context.setUpdateLastModifier(true);
+        pageManager.saveContentEntity(page, context);
     }
 
     @Path("{id}/children")
@@ -235,7 +262,10 @@ public class PagesFeed {
             context.setSiteRoot(path.toString());
             String value = wikiStyleRenderer.convertWikiToXHtml(context, page.getContent());
             context.setOutputType(origType);
-            return Response.ok(tidyCleaner.clean(value)).type(MediaType.APPLICATION_XHTML_XML_TYPE).build();
+            CacheControl cc = new CacheControl();
+            cc.setMustRevalidate(true);
+            cc.setMaxAge(10);
+            return Response.ok(tidyCleaner.clean(value)).type(MediaType.APPLICATION_XHTML_XML_TYPE).cacheControl(cc).build();
 
         }
 
@@ -243,6 +273,8 @@ public class PagesFeed {
     }
 
     private Entry createEntryFromPage(UriBuilder spaceURIBuilder, Page page, URI hostAndPort) {
+        User user = AuthenticatedUserThreadLocal.getUser();
+
         Entry entry = abdera.newEntry();
         UriBuilder builder = spaceURIBuilder.clone().segment(PAGES_SEGMENT).segment(page.getIdAsString());
         if (page.hasChildren()) {
@@ -254,6 +286,9 @@ public class PagesFeed {
         Link link = entry.addLink(UriBuilder.fromUri(hostAndPort).path(page.getUrlPath()).build().toString(), Link.REL_ALTERNATE);
         link.setMimeType("text/html");
         entry.addLink(builder.build().toString(), Link.REL_SELF);
+        if (permissionManager.hasPermission(user, Permission.EDIT, page)) {
+            entry.addLink(builder.build().toString(), Link.REL_EDIT);
+        }
         entry.addCategory(ConfluenceUtil.createCategory(ConfluenceUtil.PAGE_TERM));
         entry.setTitle(page.getTitle());
 
