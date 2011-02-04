@@ -42,9 +42,8 @@ import com.atlassian.renderer.RenderContextOutputType;
 import com.atlassian.renderer.WikiStyleRenderer;
 import com.atlassian.user.User;
 import org.apache.abdera.Abdera;
-import org.apache.abdera.i18n.iri.IRI;
 import org.apache.abdera.model.*;
-import org.apache.commons.codec.digest.DigestUtils;
+import org.apache.commons.lang.StringUtils;
 
 import javax.ws.rs.*;
 import javax.ws.rs.core.*;
@@ -131,9 +130,51 @@ public class PagesFeed {
         }
     }
 
+
+    @POST
+    public Response create(@PathParam("key") String key, @Context UriInfo info, InputStream stream) {
+        User user = AuthenticatedUserThreadLocal.getUser();
+        Space space = spaceManager.getSpace(key);
+        if (space == null) {
+            throw new IllegalArgumentException(String.format("No space called %s found", key));
+        }
+
+        if (permissionManager.hasCreatePermission(user, space, Page.class)) {
+            Document<Entry> document = abdera.getParser().parse(stream);
+            Entry entry = document.getRoot();
+            Page page = new Page();
+            page.setTitle(entry.getTitle());
+            page.setSpace(space);
+            Content content = entry.getContentElement();
+            if (content != null && content.getContentType() == Content.Type.TEXT) {
+                page.setContent(entry.getContent());
+
+            } else {
+                throw new IllegalArgumentException("Error in content. Expected text");
+            }
+            pageManager.saveContentEntity(page, new DefaultSaveContext());
+            if (page.getIdAsString() != null) {
+                return Response.created(info.getRequestUriBuilder().path(page.getIdAsString()).build()).build();
+            }
+            return Response.serverError().build();
+        }
+
+        return Response.status(Response.Status.FORBIDDEN).build();
+    }
+
     @Path("{id}")
     @GET
     public Response page(@PathParam("key") String key, @PathParam("id") long id, @Context UriInfo info) {
+        return getPage(key, id, info, true);
+    }
+
+    @Path("{id}/edit")
+    @GET
+    public Response editablePage(@PathParam("key") String key, @PathParam("id") long id, @Context UriInfo info) {
+        return getPage(key, id, info, false);
+    }
+
+    private Response getPage(String key, long id, UriInfo info, boolean xhtml) {
         User user = AuthenticatedUserThreadLocal.getUser();
         URI path = info.getBaseUriBuilder().replacePath("").build();
         Page page = pageManager.getPage(id);
@@ -149,7 +190,7 @@ public class PagesFeed {
             CacheControl cc = new CacheControl();
             cc.setMaxAge(60);
             cc.setMustRevalidate(true);
-            return Response.ok(new AbderaResponseOutput(createEntryFromPage(resourceURIBuilder, page, path))).
+            return Response.ok(new AbderaResponseOutput(createEntryFromPage(resourceURIBuilder, page, path, xhtml))).
                     cacheControl(cc).
                     lastModified(page.getLastModificationDate()).
                     build();
@@ -157,10 +198,9 @@ public class PagesFeed {
         else {
             return Response.status(Response.Status.FORBIDDEN).build();
         }
-
     }
-    
-    @Path("{id}")
+
+    @Path("{id}/edit")
     @PUT
     public Response updatePage(@PathParam("key") String key, @PathParam("id") long id, @Context UriInfo info, InputStream stream) {
         User user = AuthenticatedUserThreadLocal.getUser();
@@ -184,10 +224,11 @@ public class PagesFeed {
     private void update(String key, Entry entry, Page page, UriInfo info) {
         URI path = info.getBaseUriBuilder().replacePath("").build();
         UriBuilder resourceURIBuilder = getResourceURIBuilder(info.getBaseUriBuilder()).segment(key);
-        Entry entryFromPage = createEntryFromPage(resourceURIBuilder, page, path);
+        Entry entryFromPage = createEntryFromPage(resourceURIBuilder, page, path, false);
         if (!entryFromPage.getId().equals(entry.getId())) {
             throw new IllegalArgumentException("Wrong ID specified");
         }
+        page.setTitle(entry.getTitle());
         Content content = entry.getContentElement();
         if (content == null) {
             throw new IllegalArgumentException("No Content Specified");
@@ -201,8 +242,8 @@ public class PagesFeed {
                 throw new IllegalArgumentException("We only support to update the Confluence format which is served in text/plain.");
             }
         }
-        else if (!entryFromPage.getContentElement().getSrc().equals(content.getSrc())) {
-            throw new IllegalArgumentException(String.format("The Content URI was changed; Expected '%s' got '%s'",entryFromPage.getContentElement().getSrc(), content.getSrc()));
+        else {
+            throw new IllegalArgumentException("We do not allow Content with src on edit");
         }
         //updating metadata.
         Link up = entry.getLink("up");
@@ -253,60 +294,12 @@ public class PagesFeed {
         feed.addLink(self.toString(), Link.REL_SELF);
         feed.addLink(getResourceURIBuilder(baseURIBuilder).build().toString(), "up");
         for (Page page : pages) {
-            feed.addEntry(createEntryFromPage(spaceURIBuilder, page, hostAndPort));
+            feed.addEntry(createEntryFromPage(spaceURIBuilder, page, hostAndPort, true));
         }
         return feed;
     }
 
-    @Path("{id}/content")
-    @GET
-    @Produces({MediaType.TEXT_PLAIN})
-    public Response pageContentTextPlain(@PathParam("key") String key, @PathParam("id") long id, @Context UriInfo info, @Context Request request) {
-        return getContent(key, id, info, request, false);
-    }
-
-    @Path("{id}/content")
-    @GET
-    @Produces({MediaType.APPLICATION_XHTML_XML})
-    public Response pageContentXHTML(@PathParam("key") String key, @PathParam("id") long id, @Context UriInfo info, @Context Request request) {
-        return getContent(key, id, info, request, true);
-    }
-
-    private Response getContent(String key, long id, UriInfo info, Request request, boolean xhtml) {
-        URI path = info.getBaseUriBuilder().replacePath("").build();
-        Page page = pageManager.getPage(id);
-        if (page == null) {
-            throw new IllegalArgumentException(String.format("No page with id %s found", id));
-        }
-        if (!page.getSpaceKey().equals(key)) {
-            throw new IllegalArgumentException("Trying to get a page which does not belong in the space");
-        }
-        CacheControl cc = new CacheControl();
-        cc.setMustRevalidate(true);
-        cc.setMaxAge(10);
-
-        String tag = DigestUtils.sha384Hex(page.getContent());
-        Response.ResponseBuilder builder = request.evaluatePreconditions(new EntityTag(tag));
-        if (builder != null) {
-            return builder.build();
-        }
-        if (xhtml) {
-            PageContext context = page.toPageContext();
-            String origType = context.getOutputType();
-            context.setOutputType(RenderContextOutputType.HTML_EXPORT);
-            context.setSiteRoot(path.toString());
-            String value = wikiStyleRenderer.convertWikiToXHtml(context, page.getContent());
-            context.setOutputType(origType);
-            return Response.ok(tidyCleaner.clean(value)).type(MediaType.APPLICATION_XHTML_XML_TYPE).cacheControl(cc).tag(tag).build();
-
-        }
-
-        return Response.ok(page.getContent()).type(MediaType.TEXT_PLAIN_TYPE).cacheControl(cc).tag(tag).build();
-    }
-
-    private Entry createEntryFromPage(UriBuilder spaceURIBuilder, Page page, URI hostAndPort) {
-        User user = AuthenticatedUserThreadLocal.getUser();
-
+    private Entry createEntryFromPage(UriBuilder spaceURIBuilder, Page page, URI hostAndPort, boolean xhtml) {
         Entry entry = abdera.newEntry();
         UriBuilder builder = spaceURIBuilder.clone().segment(PAGES_SEGMENT).segment(page.getIdAsString());
         if (page.hasChildren()) {
@@ -318,9 +311,7 @@ public class PagesFeed {
         Link link = entry.addLink(UriBuilder.fromUri(hostAndPort).path(page.getUrlPath()).build().toString(), Link.REL_ALTERNATE);
         link.setMimeType("text/html");
         entry.addLink(builder.build().toString(), Link.REL_SELF);
-        if (permissionManager.hasPermission(user, Permission.EDIT, page)) {
-            entry.addLink(builder.build().toString(), Link.REL_EDIT);
-        }
+        entry.addLink(builder.clone().segment("edit").build().toString(), Link.REL_EDIT);
         entry.addCategory(ConfluenceUtil.createCategory(ConfluenceUtil.PAGE_TERM));
         entry.setTitle(page.getTitle());
 
@@ -333,13 +324,32 @@ public class PagesFeed {
         entry.setEdited(page.getLastModificationDate());
         entry.setUpdated(page.getLastModificationDate());
         entry.setPublished(page.getCreationDate());
-        entry.setContent(new IRI(builder.clone().segment("content").build()), MediaType.APPLICATION_XHTML_XML);
+        entry.setContentElement(getContent(page, hostAndPort, xhtml));
         //page.isDeleted() add a tombstone here.
         return entry;
+    }
+
+    private Content getContent(Page page, URI baseURI, boolean xhtml) {
+        Content content = abdera.getFactory().newContent();
+
+        if (xhtml) {
+            PageContext context = page.toPageContext();
+            String origType = context.getOutputType();
+            context.setOutputType(RenderContextOutputType.HTML_EXPORT);
+            context.setSiteRoot(baseURI.toString());
+            String value = wikiStyleRenderer.convertWikiToXHtml(context, page.getContent());
+            context.setOutputType(origType);
+            content.setContentType(Content.Type.XHTML);
+            content.setValue(tidyCleaner.clean(value));
+        } else {
+            content.setContentType(Content.Type.TEXT);
+            content.setValue(page.getContent());
+        }
+
+        return content;
     }
 
     private UriBuilder getResourceURIBuilder(UriBuilder baseUriBuilder) {
         return baseUriBuilder.clone().path(SpaceFeed.class);
     }
-
 }
