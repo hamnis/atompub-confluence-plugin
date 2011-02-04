@@ -3,7 +3,7 @@ AJS.toInit(function() {
 
     function populateForm() {
         AJS.$.ajax({
-            url: baseUrl + "/rest/atompub-admin/1.0/",
+            url: baseUrl + "/rest/atompub-admin/latest/",
             dataType: "json",
             success: function(config) {
                 AJS.$("#page_feed_ttl").attr("value", config.page.ttl);
@@ -17,4 +17,19 @@ AJS.toInit(function() {
     }
 
     populateForm();
+});
+
+function updateConfig() {
+    AJS.$.ajax({
+        url: baseUrl + "/rest/xproduct-admin/latest/",
+        type: "PUT",
+        contentType: "application/json",
+        data: '{ "name": "' + AJS.$("#name").attr("value") + '", "time": ' +  AJS.$("#time").attr("value") + ' }',
+        processData: false
+    });
+}
+
+AJS.$("#admin").submit(function(e) {
+    e.preventDefault();
+    updateConfig();
 });
