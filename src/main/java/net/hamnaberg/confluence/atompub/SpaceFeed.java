@@ -1,4 +1,4 @@
-package net.hamnaberg.confluence;
+package net.hamnaberg.confluence.atompub;
 
 import com.atlassian.confluence.security.SpacePermission;
 import com.atlassian.confluence.spaces.Space;

@@ -1,0 +1,64 @@
+<html>
+<head>
+  <title>Atompub Admin</title>
+  <meta name="decorator" content="atl.admin">
+  <meta name="application-base-url" content="$applicationProperties.getBaseUrl()">
+  $webResourceManager.requireResource("net.hamnaberg.confluence.confluence-atompub-plugin:resources")
+</head>
+<body>
+<form id="admin" class="aui">
+  <div style="border: 1px dashed #008b8b; width: 30%; padding: 5px 5px 5px 5px;">
+    <div>
+      <h3>Page Feed:</h3>
+
+      <div style="margin-left: 10px;">
+        <label for="page_feed_ttl">Cache Time (s)</label>
+        <input type="text" id="page_feed_ttl" name="page_feed_ttl" class="number">
+      </div>
+    </div>
+    <div>
+      <h3>Single Page:</h3>
+
+      <div style="margin-left: 10px;">
+        <label for="page_ttl">Cache Time (s)</label>
+        <input type="text" id="page_ttl" name="page_ttl" class="number">
+      </div>
+      <div style="margin-left: 10px;">
+        <label for="page_must_revalidate">Must Revalidate</label>
+        <select id="page_must_revalidate">
+          <option value="true">Yes</option>
+          <option value="false" selected="selected">No</option>
+        </select>
+      </div>
+    </div>
+    <div>
+      <h3>News Feed:</h3>
+
+      <div style="margin-left: 10px;">
+        <label for="news_feed_ttl">Cache Time (s)</label>
+        <input type="text" id="news_feed_ttl" name="news_feed_ttl" class="number">
+      </div>
+    </div>
+    <div>
+      <h3>News Item:</h3>
+
+      <div style="margin-left: 10px;">
+        <label for="news_ttl">Cache Time (s)</label>
+        <input type="text" id="news_ttl" name="page_ttl" class="number">
+      </div>
+      <div style="margin-left: 10px;">
+        <label for="news_must_revalidate">Must Revalidate</label>
+        <select id="news_must_revalidate">
+          <option value="true">Yes</option>
+          <option value="false" selected="selected">No</option>
+        </select>
+      </div>
+    </div>
+      
+  </div>
+  <div>
+    <input type="submit" value="Save" class="button">
+  </div>
+</form>
+</body>
+</html>

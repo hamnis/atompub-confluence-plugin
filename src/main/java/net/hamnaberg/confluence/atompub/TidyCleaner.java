@@ -1,4 +1,4 @@
-package net.hamnaberg.confluence;
+package net.hamnaberg.confluence.atompub;
 
 import org.w3c.tidy.Tidy;
 

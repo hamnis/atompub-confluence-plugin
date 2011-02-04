@@ -1,4 +1,4 @@
-package net.hamnaberg.confluence;
+package net.hamnaberg.confluence.atompub;
 
 import com.atlassian.plugins.rest.common.security.AnonymousAllowed;
 import org.apache.abdera.Abdera;
@@ -15,7 +15,7 @@ import javax.ws.rs.core.Context;
 import javax.ws.rs.core.Response;
 import javax.ws.rs.core.UriInfo;
 
-import static net.hamnaberg.confluence.ConfluenceUtil.*;
+import static net.hamnaberg.confluence.atompub.ConfluenceUtil.*;
 
 /**
  * Created by IntelliJ IDEA.

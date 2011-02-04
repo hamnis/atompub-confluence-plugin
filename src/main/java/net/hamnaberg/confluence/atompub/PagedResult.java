@@ -1,4 +1,4 @@
-package net.hamnaberg.confluence;
+package net.hamnaberg.confluence.atompub;
 
 import org.apache.abdera.Abdera;
 import org.apache.abdera.ext.opensearch.OpenSearchConstants;

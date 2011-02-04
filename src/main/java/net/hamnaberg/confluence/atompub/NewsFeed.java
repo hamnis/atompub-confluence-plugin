@@ -1,4 +1,4 @@
-package net.hamnaberg.confluence;
+package net.hamnaberg.confluence.atompub;
 
 import com.atlassian.bonnie.Searchable;
 import com.atlassian.confluence.pages.BlogPost;

@@ -1,14 +1,11 @@
 package net.hamnaberg.confluence;
 
-import org.apache.abdera.Abdera;
+import net.hamnaberg.confluence.atompub.PagedResult;
 import org.apache.abdera.model.Link;
 import org.junit.Assert;
 import org.junit.Test;
 
 import javax.ws.rs.core.UriBuilder;
-import java.util.Arrays;
-import java.util.Collections;
-import java.util.List;
 
 /**
  * Created by IntelliJ IDEA.
