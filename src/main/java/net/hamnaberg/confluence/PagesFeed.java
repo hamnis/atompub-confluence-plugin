@@ -28,6 +28,7 @@ import com.atlassian.user.User;
 import org.apache.abdera.Abdera;
 import org.apache.abdera.i18n.iri.IRI;
 import org.apache.abdera.model.*;
+import org.apache.commons.codec.digest.DigestUtils;
 
 import javax.ws.rs.*;
 import javax.ws.rs.core.*;
@@ -105,7 +106,10 @@ public class PagesFeed {
             }
             Feed feed = generate(space, pages, info.getBaseUriBuilder(), path);
             result.populate(feed);
-            return Response.ok(new AbderaResponseOutput(feed)).build();
+            CacheControl cc = new CacheControl();
+            cc.setMaxAge(60);
+            cc.setNoTransform(true);
+            return Response.ok(new AbderaResponseOutput(feed)).cacheControl(cc).build();
         } catch (InvalidSearchException e) {
             throw new RuntimeException(e);
         }
@@ -126,7 +130,13 @@ public class PagesFeed {
         }
         if (permissionManager.hasPermission(user, Permission.VIEW, page)) {
             UriBuilder resourceURIBuilder = getResourceURIBuilder(info.getBaseUriBuilder()).segment(key);
-            return Response.ok(new AbderaResponseOutput(createEntryFromPage(resourceURIBuilder, page, path))).build();
+            CacheControl cc = new CacheControl();
+            cc.setMaxAge(60);
+            cc.setMustRevalidate(true);
+            return Response.ok(new AbderaResponseOutput(createEntryFromPage(resourceURIBuilder, page, path))).
+                    cacheControl(cc).
+                    lastModified(page.getLastModificationDate()).
+                    build();
         }
         else {
             return Response.status(Response.Status.FORBIDDEN).build();
@@ -235,18 +245,18 @@ public class PagesFeed {
     @Path("{id}/content")
     @GET
     @Produces({MediaType.TEXT_PLAIN})
-    public Response pageContentTextPlain(@PathParam("key") String key, @PathParam("id") long id, @Context UriInfo info) {
-        return getContent(key, id, info, false);
+    public Response pageContentTextPlain(@PathParam("key") String key, @PathParam("id") long id, @Context UriInfo info, @Context Request request) {
+        return getContent(key, id, info, request, false);
     }
 
     @Path("{id}/content")
     @GET
     @Produces({MediaType.APPLICATION_XHTML_XML})
-    public Response pageContentXHTML(@PathParam("key") String key, @PathParam("id") long id, @Context UriInfo info) {
-        return getContent(key, id, info, true);
+    public Response pageContentXHTML(@PathParam("key") String key, @PathParam("id") long id, @Context UriInfo info, @Context Request request) {
+        return getContent(key, id, info, request, true);
     }
 
-    private Response getContent(String key, long id, UriInfo info, boolean xhtml) {
+    private Response getContent(String key, long id, UriInfo info, Request request, boolean xhtml) {
         URI path = info.getBaseUriBuilder().replacePath("").build();
         Page page = pageManager.getPage(id);
         if (page == null) {
@@ -255,6 +265,15 @@ public class PagesFeed {
         if (!page.getSpaceKey().equals(key)) {
             throw new IllegalArgumentException("Trying to get a page which does not belong in the space");
         }
+        CacheControl cc = new CacheControl();
+        cc.setMustRevalidate(true);
+        cc.setMaxAge(10);
+
+        String tag = DigestUtils.sha384Hex(page.getContent());
+        Response.ResponseBuilder builder = request.evaluatePreconditions(new EntityTag(tag));
+        if (builder != null) {
+            return builder.build();
+        }
         if (xhtml) {
             PageContext context = page.toPageContext();
             String origType = context.getOutputType();
@@ -262,14 +281,11 @@ public class PagesFeed {
             context.setSiteRoot(path.toString());
             String value = wikiStyleRenderer.convertWikiToXHtml(context, page.getContent());
             context.setOutputType(origType);
-            CacheControl cc = new CacheControl();
-            cc.setMustRevalidate(true);
-            cc.setMaxAge(10);
-            return Response.ok(tidyCleaner.clean(value)).type(MediaType.APPLICATION_XHTML_XML_TYPE).cacheControl(cc).build();
+            return Response.ok(tidyCleaner.clean(value)).type(MediaType.APPLICATION_XHTML_XML_TYPE).cacheControl(cc).tag(tag).build();
 
         }
 
-        return Response.ok(page.getContent()).type(MediaType.TEXT_PLAIN_TYPE).build();
+        return Response.ok(page.getContent()).type(MediaType.TEXT_PLAIN_TYPE).cacheControl(cc).tag(tag).build();
     }
 
     private Entry createEntryFromPage(UriBuilder spaceURIBuilder, Page page, URI hostAndPort) {
