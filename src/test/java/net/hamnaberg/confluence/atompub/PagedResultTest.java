@@ -1,6 +1,5 @@
-package net.hamnaberg.confluence;
+package net.hamnaberg.confluence.atompub;
 
-import net.hamnaberg.confluence.atompub.PagedResult;
 import org.apache.abdera.model.Link;
 import org.junit.Assert;
 import org.junit.Test;

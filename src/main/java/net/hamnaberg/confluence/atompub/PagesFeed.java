@@ -174,7 +174,7 @@ public class PagesFeed {
         return getPage(key, id, info, false);
     }
 
-    private Response getPage(String key, long id, UriInfo info, boolean xhtml) {
+    private Response getPage(String key, long id, UriInfo info, boolean edit) {
         User user = AuthenticatedUserThreadLocal.getUser();
         URI path = info.getBaseUriBuilder().replacePath("").build();
         Page page = pageManager.getPage(id);
@@ -185,12 +185,12 @@ public class PagesFeed {
         if (!page.getSpaceKey().equals(key)) {
             throw new IllegalArgumentException("Trying to get a page which does not belong in the space");
         }
-        if (permissionManager.hasPermission(user, Permission.VIEW, page)) {
+        if (permissionManager.hasPermission(user, edit ? Permission.EDIT : Permission.VIEW, page)) {
             UriBuilder resourceURIBuilder = getResourceURIBuilder(info.getBaseUriBuilder()).segment(key);
             CacheControl cc = new CacheControl();
             cc.setMaxAge(60);
             cc.setMustRevalidate(true);
-            return Response.ok(new AbderaResponseOutput(createEntryFromPage(resourceURIBuilder, page, path, xhtml))).
+            return Response.ok(new AbderaResponseOutput(createEntryFromPage(resourceURIBuilder, page, path, edit))).
                     cacheControl(cc).
                     lastModified(page.getLastModificationDate()).
                     build();
@@ -299,7 +299,7 @@ public class PagesFeed {
         return feed;
     }
 
-    private Entry createEntryFromPage(UriBuilder spaceURIBuilder, Page page, URI hostAndPort, boolean xhtml) {
+    private Entry createEntryFromPage(UriBuilder spaceURIBuilder, Page page, URI hostAndPort, boolean edit) {
         Entry entry = abdera.newEntry();
         UriBuilder builder = spaceURIBuilder.clone().segment(PAGES_SEGMENT).segment(page.getIdAsString());
         if (page.hasChildren()) {
@@ -324,7 +324,7 @@ public class PagesFeed {
         entry.setEdited(page.getLastModificationDate());
         entry.setUpdated(page.getLastModificationDate());
         entry.setPublished(page.getCreationDate());
-        entry.setContentElement(getContent(page, hostAndPort, xhtml));
+        entry.setContentElement(getContent(page, hostAndPort, !edit));
         //page.isDeleted() add a tombstone here.
         return entry;
     }

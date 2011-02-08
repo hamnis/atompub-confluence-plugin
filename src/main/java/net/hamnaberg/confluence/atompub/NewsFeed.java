@@ -155,26 +155,16 @@ public class NewsFeed {
     @Path("{id}")
     @GET
     public Response item(@PathParam("key") String key, @PathParam("id") long id, @Context UriInfo info) {
-        User user = AuthenticatedUserThreadLocal.getUser();
-
-        URI path = info.getBaseUriBuilder().replacePath("").build();
-        BlogPost post = pageManager.getBlogPost(id);
-        if (post == null) {
-            throw new IllegalArgumentException(String.format("No page with id %s found", id));
-        }
-        if (!post.getSpaceKey().equals(key)) {
-            throw new IllegalArgumentException("Trying to get a page which does not belong in the space");
-        }
-        if (permissionManager.hasPermission(user, Permission.VIEW, post)) {
-            UriBuilder resourceURIBuilder = getResourceURIBuilder(info.getBaseUriBuilder()).segment(key);
-            return Response.ok(new AbderaResponseOutput(createEntryFromPage(resourceURIBuilder, post, path, true))).build();
-        }
-        return Response.status(Response.Status.FORBIDDEN).build();
+        return getItem(key, id, info, false);
     }
 
     @Path("{id}/edit")
     @GET
     public Response editableItem(@PathParam("key") String key, @PathParam("id") long id, @Context UriInfo info) {
+        return getItem(key, id, info, true);
+    }
+
+    private Response getItem(String key, long id, UriInfo info, boolean edit) {
         User user = AuthenticatedUserThreadLocal.getUser();
 
         URI path = info.getBaseUriBuilder().replacePath("").build();
@@ -185,9 +175,9 @@ public class NewsFeed {
         if (!post.getSpaceKey().equals(key)) {
             throw new IllegalArgumentException("Trying to get a page which does not belong in the space");
         }
-        if (permissionManager.hasPermission(user, Permission.VIEW, post)) {
+        if (permissionManager.hasPermission(user, edit ? Permission.EDIT : Permission.VIEW, post)) {
             UriBuilder resourceURIBuilder = getResourceURIBuilder(info.getBaseUriBuilder()).segment(key);
-            return Response.ok(new AbderaResponseOutput(createEntryFromPage(resourceURIBuilder, post, path, false))).build();
+            return Response.ok(new AbderaResponseOutput(createEntryFromPage(resourceURIBuilder, post, path, !edit))).build();
         }
         return Response.status(Response.Status.FORBIDDEN).build();
     }
