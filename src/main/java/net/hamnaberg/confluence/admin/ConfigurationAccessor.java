@@ -49,6 +49,9 @@ public class ConfigurationAccessor {
                 config.setPageFeed(CacheControlConfig.fromMap((Map<String, String>) settings.get(name("page_feed"))));
                 config.setNewsFeed(CacheControlConfig.fromMap((Map<String, String>) settings.get(name("news_feed"))));
                 config.setNews(CacheControlConfig.fromMap((Map<String, String>) settings.get(name("news"))));
+                if (config.shouldDefault()) {
+                    config = new Config();
+                }
                 return config;
             }
         });

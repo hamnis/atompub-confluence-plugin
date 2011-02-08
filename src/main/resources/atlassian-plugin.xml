@@ -27,12 +27,16 @@
   </rest>
 
   <!-- Admin stuff -->
+  <resource type="i18n" name="i18n" location="message"  />
 
   <component-import key="userManager" interface="com.atlassian.sal.api.user.UserManager"/>
   <component-import key="loginUriProvider" interface="com.atlassian.sal.api.auth.LoginUriProvider"/>
   <component-import key="renderer"
                     interface="com.atlassian.templaterenderer.velocity.one.six.VelocityTemplateRenderer"/>
   <component-import key="applicationProperties" interface="com.atlassian.sal.api.ApplicationProperties"/>
+  <component-import key="pluginSettingsFactory" interface="com.atlassian.sal.api.pluginsettings.PluginSettingsFactory"/>
+  <component-import key="transactionTemplate" interface="com.atlassian.sal.api.transaction.TransactionTemplate"/>
+  
   <template-context-item key="applicationPropertiesContextItem" component-ref="applicationProperties"
                          context-key="applicationProperties" name="Application Properties Context Item"/>
 
@@ -50,10 +54,10 @@
     <package>net.hamnaberg.confluence.admin</package>
   </rest>
 
-  <web-item key="conf-menu-item" name="XProduct Admin" section="system.admin/configuration" weight="10">
-    <description>Link to xproduct-admin page.</description>
-    <label key="xproduct.admin.label"/>
-    <link linkId="xproduct-admin-link">/plugins/servlet/atompub/admin</link>
+  <web-item key="conf-menu-item" name="Atompub Admin" section="system.admin/configuration" weight="10">
+    <description>Link to Atompub admin page.</description>
+    <label key="atompub.admin.label"/>
+    <link linkId="atompub-admin-link">/plugins/servlet/atompub/admin</link>
   </web-item>
 
 

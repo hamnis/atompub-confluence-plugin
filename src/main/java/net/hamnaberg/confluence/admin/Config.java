@@ -41,6 +41,7 @@ public class Config {
     }
 
     public Config() {
+        this(new CacheControlConfig(), new CacheControlConfig(), new CacheControlConfig(), new CacheControlConfig());
     }
 
     public CacheControlConfig getPage() {
@@ -73,5 +74,9 @@ public class Config {
 
     public void setNews(CacheControlConfig news) {
         this.news = news;
+    }
+
+    public boolean shouldDefault() {
+        return page == null && pageFeed == null && newsFeed == null && news == null;
     }
 }

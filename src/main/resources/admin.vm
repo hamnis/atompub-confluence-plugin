@@ -17,9 +17,8 @@
 <html>
 <head>
   <title>Atompub Admin</title>
-  <meta name="decorator" content="atl.admin">
-  <meta name="application-base-url" content="$applicationProperties.getBaseUrl()">
   $webResourceManager.requireResource("net.hamnaberg.confluence.confluence-atompub-plugin:resources")
+  <meta name="decorator" content="atl.admin">
 </head>
 <body>
 <form id="admin" class="aui">

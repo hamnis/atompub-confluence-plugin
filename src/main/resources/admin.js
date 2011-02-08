@@ -15,7 +15,7 @@
  */
 
 AJS.toInit(function() {
-    var baseUrl = AJS.$("meta[name='application-base-url']").attr("content");
+    var baseUrl = AJS.$("#confluence-context-path").attr("content");
 
     function populateForm() {
         AJS.$.ajax({

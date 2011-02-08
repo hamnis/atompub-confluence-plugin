@@ -32,14 +32,14 @@ import java.util.Map;
  */
 @XmlRootElement(name = "config")
 public class CacheControlConfig {
-    @XmlElement(name = "ttl") private int ttl = 60;
+    @XmlElement(name = "ttl") private int ttl = 300;
     @XmlElement(name = "transform") private boolean transform = false;
-    @XmlElement(name = "revalidate") private boolean must_revalidate = true;
+    @XmlElement(name = "revalidate") private boolean revalidate = false;
 
-    public CacheControlConfig(int ttl, boolean transform, boolean must_revalidate) {
+    public CacheControlConfig(int ttl, boolean transform, boolean revalidate) {
         this.ttl = ttl;
         this.transform = transform;
-        this.must_revalidate = must_revalidate;
+        this.revalidate = revalidate;
     }
 
     public CacheControlConfig() {
@@ -61,19 +61,19 @@ public class CacheControlConfig {
         this.transform = transform;
     }
 
-    public boolean isMust_revalidate() {
-        return must_revalidate;
+    public boolean isRevalidate() {
+        return revalidate;
     }
 
-    public void setMust_revalidate(boolean must_revalidate) {
-        this.must_revalidate = must_revalidate;
+    public void setRevalidate(boolean revalidate) {
+        this.revalidate = revalidate;
     }
 
     public Map<String, String> toMap() {
         HashMap<String, String> map = new HashMap<String, String>();
         map.put("ttl", String.valueOf(ttl));
         map.put("transform", String.valueOf(transform));
-        map.put("must_revalidate", String.valueOf(must_revalidate));
+        map.put("revalidate", String.valueOf(revalidate));
         return map;
     }
 
@@ -84,7 +84,7 @@ public class CacheControlConfig {
         return new CacheControlConfig(
                 NumberUtils.toInt(map.get("ttl"), 0),
                 Boolean.parseBoolean(map.get("transform")),
-                Boolean.parseBoolean(map.get("must_revalidate"))
+                Boolean.parseBoolean(map.get("revalidate"))
                 );
     }
 }
