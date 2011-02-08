@@ -37,7 +37,7 @@ public class TidyCleaner {
         tidy.setFixComments(false);
         tidy.setHideComments(true);
         tidy.setXHTML(true);
-        tidy.setPrintBodyOnly(false);
+        tidy.setPrintBodyOnly(true);
         //tidy.setWriteback(false);
         tidy.setOnlyErrors(false);
         tidy.setErrout(new PrintWriter(new StringWriter()));

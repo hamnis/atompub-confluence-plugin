@@ -50,10 +50,7 @@ import javax.ws.rs.core.*;
 import javax.xml.namespace.QName;
 import java.io.InputStream;
 import java.net.URI;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.List;
-import java.util.TreeSet;
+import java.util.*;
 
 /**
 ' * Created by IntelliJ IDEA.
@@ -71,19 +68,11 @@ public class PagesFeed {
     private static final String PAGES_SEGMENT = "pages";
 
     private TidyCleaner tidyCleaner;
-    private final PageManager pageManager;
-    private final SpaceManager spaceManager;
-    private final WikiStyleRenderer wikiStyleRenderer;
-    private final SearchManager searchManager;
-    private final PermissionManager permissionManager;
     private Abdera abdera  = Abdera.getInstance();
+    private final ConfluenceServices services;
 
-    public PagesFeed(PageManager pageManager, SpaceManager spaceManager, WikiStyleRenderer wikiStyleRenderer, SearchManager searchManager, PermissionManager permissionManager) {
-        this.pageManager = pageManager;
-        this.spaceManager = spaceManager;
-        this.wikiStyleRenderer = wikiStyleRenderer;
-        this.searchManager = searchManager;
-        this.permissionManager = permissionManager;
+    public PagesFeed(ConfluenceServices services) {
+        this.services = services;
         tidyCleaner = new TidyCleaner();
 
     }
@@ -92,54 +81,36 @@ public class PagesFeed {
     public Response pages(@PathParam("key") String key, @Context UriInfo info, @QueryParam("pw") int pageNo) {
         User user = AuthenticatedUserThreadLocal.getUser();
         URI path = info.getBaseUriBuilder().replacePath("").build();
-        Space space = spaceManager.getSpace(key);
+        Space space = services.getSpaceManager().getSpace(key);
         if (space == null) {
             throw new IllegalArgumentException(String.format("No space called %s found", key));
         }
         if (pageNo < 1) {
             pageNo = 1;
         }
-        try {
-            ListBuilder<Page> topLevelPagesBuilder = pageManager.getTopLevelPagesBuilder(space);
-            int availableSize = topLevelPagesBuilder.getAvailableSize();
-            PagedResult result = new PagedResult(availableSize, pageNo, PAGE_SIZE, info.getBaseUriBuilder());
-            List<Searchable> searchables = searchManager.searchEntities(
-                    new ContentSearch(
-                            new ContentTypeQuery(ContentTypeEnum.PAGE),
-                            new ModifiedSort(SearchSort.Order.DESCENDING),
-                            new InSpaceSearchFilter(new TreeSet<String>(Arrays.asList(key))),
-                            new SubsetResultFilter(pageNo - 1, PAGE_SIZE)
-                    )
-            );
-            List<Page> pages = new ArrayList<Page>();
-            for (Searchable res : searchables) {
-                Page page = (Page) res;
-
-                if (page.getParent() == null && permissionManager.hasPermission(user, Permission.VIEW, page)) {
-                    pages.add(page);
-                }
-            }
-            Feed feed = generate(space, pages, info.getBaseUriBuilder(), path);
-            result.populate(feed);
-            CacheControl cc = new CacheControl();
-            cc.setMaxAge(60);
-            cc.setNoTransform(true);
-            return Response.ok(new AbderaResponseOutput(feed)).cacheControl(cc).build();
-        } catch (InvalidSearchException e) {
-            throw new RuntimeException(e);
-        }
+        ListBuilder<Page> topLevelPagesBuilder = services.getPageManager().getTopLevelPagesBuilder(space);
+        int availableSize = topLevelPagesBuilder.getAvailableSize(); //todo: this may be incorrect
+        PagedResult result = new PagedResult(availableSize, pageNo, PAGE_SIZE, info.getBaseUriBuilder());
+        List<Page> pages = new ArrayList<Page>(topLevelPagesBuilder.getPage(result.getCurrentIndex(), PAGE_SIZE));
+        Collections.sort(pages, Collections.reverseOrder(new LastModificationDateComparator()));
+        Feed feed = generate(space, pages, info.getBaseUriBuilder(), path);
+        result.populate(feed);
+        CacheControl cc = new CacheControl();
+        cc.setMaxAge(60);
+        cc.setNoTransform(true);
+        return Response.ok(new AbderaResponseOutput(feed)).cacheControl(cc).build();
     }
 
 
     @POST
     public Response create(@PathParam("key") String key, @Context UriInfo info, InputStream stream) {
         User user = AuthenticatedUserThreadLocal.getUser();
-        Space space = spaceManager.getSpace(key);
+        Space space = services.getSpaceManager().getSpace(key);
         if (space == null) {
             throw new IllegalArgumentException(String.format("No space called %s found", key));
         }
 
-        if (permissionManager.hasCreatePermission(user, space, Page.class)) {
+        if (services.getPermissionManager().hasCreatePermission(user, space, Page.class)) {
             Document<Entry> document = abdera.getParser().parse(stream);
             Entry entry = document.getRoot();
             Page page = new Page();
@@ -152,7 +123,7 @@ public class PagesFeed {
             } else {
                 throw new IllegalArgumentException("Error in content. Expected text");
             }
-            pageManager.saveContentEntity(page, new DefaultSaveContext());
+            services.getPageManager().saveContentEntity(page, new DefaultSaveContext());
             if (page.getIdAsString() != null) {
                 return Response.created(info.getRequestUriBuilder().path(page.getIdAsString()).build()).build();
             }
@@ -177,7 +148,7 @@ public class PagesFeed {
     private Response getPage(String key, long id, UriInfo info, boolean edit) {
         User user = AuthenticatedUserThreadLocal.getUser();
         URI path = info.getBaseUriBuilder().replacePath("").build();
-        Page page = pageManager.getPage(id);
+        Page page = services.getPageManager().getPage(id);
 
         if (page == null) {
             throw new IllegalArgumentException(String.format("No page with id %s found", id));
@@ -185,7 +156,7 @@ public class PagesFeed {
         if (!page.getSpaceKey().equals(key)) {
             throw new IllegalArgumentException("Trying to get a page which does not belong in the space");
         }
-        if (permissionManager.hasPermission(user, edit ? Permission.EDIT : Permission.VIEW, page)) {
+        if (services.getPermissionManager().hasPermission(user, edit ? Permission.EDIT : Permission.VIEW, page)) {
             UriBuilder resourceURIBuilder = getResourceURIBuilder(info.getBaseUriBuilder()).segment(key);
             CacheControl cc = new CacheControl();
             cc.setMaxAge(60);
@@ -205,14 +176,14 @@ public class PagesFeed {
     public Response updatePage(@PathParam("key") String key, @PathParam("id") long id, @Context UriInfo info, InputStream stream) {
         User user = AuthenticatedUserThreadLocal.getUser();
         
-        Page page = pageManager.getPage(id);
+        Page page = services.getPageManager().getPage(id);
         if (page == null) {
             throw new IllegalArgumentException(String.format("No page with id %s found", id));
         }
         if (!page.getSpaceKey().equals(key)) {
             throw new IllegalArgumentException("Trying to get a page which does not belong in the space");
         }
-        if (permissionManager.hasPermission(user, Permission.EDIT, page)) {
+        if (services.getPermissionManager().hasPermission(user, Permission.EDIT, page)) {
             Document<Entry> doc = abdera.getParser().parse(stream);
             Entry entry = doc.getRoot();
             update(key, entry, page, info);
@@ -253,14 +224,14 @@ public class PagesFeed {
         //TODO: Consider adding support for moving stuff around... Setting the parent etc.
         DefaultSaveContext context = new DefaultSaveContext();
         context.setUpdateLastModifier(true);
-        pageManager.saveContentEntity(page, context);
+        services.getPageManager().saveContentEntity(page, context);
     }
 
     @Path("{id}/children")
     @GET
     public Response children(@PathParam("key") String key, @PathParam("id") long id, @Context UriInfo info) {
         URI path = info.getBaseUriBuilder().replacePath("").build();
-        Page page = pageManager.getPage(id);
+        Page page = services.getPageManager().getPage(id);
         if (page == null) {
             throw new IllegalArgumentException(String.format("No page with id %s found", id));
         }
@@ -294,7 +265,7 @@ public class PagesFeed {
         feed.addLink(self.toString(), Link.REL_SELF);
         feed.addLink(getResourceURIBuilder(baseURIBuilder).build().toString(), "up");
         for (Page page : pages) {
-            feed.addEntry(createEntryFromPage(spaceURIBuilder, page, hostAndPort, true));
+            feed.addEntry(createEntryFromPage(spaceURIBuilder, page, hostAndPort, false));
         }
         return feed;
     }
@@ -337,7 +308,7 @@ public class PagesFeed {
             String origType = context.getOutputType();
             context.setOutputType(RenderContextOutputType.HTML_EXPORT);
             context.setSiteRoot(baseURI.toString());
-            String value = wikiStyleRenderer.convertWikiToXHtml(context, page.getContent());
+            String value = services.getWikiStyleRenderer().convertWikiToXHtml(context, page.getContent());
             context.setOutputType(origType);
             content.setContentType(Content.Type.XHTML);
             content.setValue(tidyCleaner.clean(value));

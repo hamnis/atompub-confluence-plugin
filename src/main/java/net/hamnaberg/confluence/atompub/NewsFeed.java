@@ -67,19 +67,11 @@ public class NewsFeed {
     private static final String NEWS_SEGMENT = "news";
 
     private TidyCleaner tidyCleaner;
-    private final PageManager pageManager;
-    private final SpaceManager spaceManager;
-    private final WikiStyleRenderer wikiStyleRenderer;
-    private final SearchManager searchManager;
-    private final PermissionManager permissionManager;
     private Abdera abdera  = Abdera.getInstance();
+    private final ConfluenceServices services;
 
-    public NewsFeed(PageManager pageManager, SpaceManager spaceManager, WikiStyleRenderer wikiStyleRenderer, SearchManager searchManager, PermissionManager permissionManager) {
-        this.pageManager = pageManager;
-        this.spaceManager = spaceManager;
-        this.wikiStyleRenderer = wikiStyleRenderer;
-        this.searchManager = searchManager;
-        this.permissionManager = permissionManager;
+    public NewsFeed(ConfluenceServices services) {
+        this.services = services;
         tidyCleaner = new TidyCleaner();
     }
 
@@ -88,7 +80,7 @@ public class NewsFeed {
         User user = AuthenticatedUserThreadLocal.getUser();
         
         URI path = info.getBaseUriBuilder().replacePath("").build();
-        Space space = spaceManager.getSpace(key);
+        Space space = services.getSpaceManager().getSpace(key);
         if (space == null) {
             throw new IllegalArgumentException(String.format("No space called %s found", key));
         }
@@ -96,9 +88,9 @@ public class NewsFeed {
             pageNo = 1;
         }
         try {
-            int availableSize = spaceManager.getNumberOfBlogPosts(space);
+            int availableSize = services.getSpaceManager().getNumberOfBlogPosts(space);
             PagedResult result = new PagedResult(availableSize, pageNo, PAGE_SIZE, info.getBaseUriBuilder());
-            List<Searchable> searchables = searchManager.searchEntities(
+            List<Searchable> searchables = services.getSearchManager().searchEntities(
                     new ContentSearch(
                             new ContentTypeQuery(ContentTypeEnum.BLOG),
                             new ModifiedSort(SearchSort.Order.DESCENDING),
@@ -108,7 +100,7 @@ public class NewsFeed {
             );
             List<BlogPost> pages = new ArrayList<BlogPost>();
             for (Searchable res : searchables) {
-                if (permissionManager.hasPermission(user, Permission.VIEW, res)) {
+                if (services.getPermissionManager().hasPermission(user, Permission.VIEW, res)) {
                     pages.add((BlogPost) res);
                 }
             }
@@ -123,12 +115,12 @@ public class NewsFeed {
     @POST
     public Response create(@PathParam("key") String key, @Context UriInfo info, InputStream stream) {
         User user = AuthenticatedUserThreadLocal.getUser();
-        Space space = spaceManager.getSpace(key);
+        Space space = services.getSpaceManager().getSpace(key);
         if (space == null) {
             throw new IllegalArgumentException(String.format("No space called %s found", key));
         }
 
-        if (permissionManager.hasCreatePermission(user, space, BlogPost.class)) {
+        if (services.getPermissionManager().hasCreatePermission(user, space, BlogPost.class)) {
             Document<Entry> document = abdera.getParser().parse(stream);
             Entry entry = document.getRoot();
             BlogPost post = new BlogPost();
@@ -141,7 +133,7 @@ public class NewsFeed {
             } else {
                 throw new IllegalArgumentException("Error in content. Expected text");
             }
-            pageManager.saveContentEntity(post, new DefaultSaveContext());
+            services.getPageManager().saveContentEntity(post, new DefaultSaveContext());
             if (post.getIdAsString() != null) {
                 return Response.created(info.getRequestUriBuilder().path(post.getIdAsString()).build()).build();
             }
@@ -168,14 +160,14 @@ public class NewsFeed {
         User user = AuthenticatedUserThreadLocal.getUser();
 
         URI path = info.getBaseUriBuilder().replacePath("").build();
-        BlogPost post = pageManager.getBlogPost(id);
+        BlogPost post = services.getPageManager().getBlogPost(id);
         if (post == null) {
             throw new IllegalArgumentException(String.format("No page with id %s found", id));
         }
         if (!post.getSpaceKey().equals(key)) {
             throw new IllegalArgumentException("Trying to get a page which does not belong in the space");
         }
-        if (permissionManager.hasPermission(user, edit ? Permission.EDIT : Permission.VIEW, post)) {
+        if (services.getPermissionManager().hasPermission(user, edit ? Permission.EDIT : Permission.VIEW, post)) {
             UriBuilder resourceURIBuilder = getResourceURIBuilder(info.getBaseUriBuilder()).segment(key);
             return Response.ok(new AbderaResponseOutput(createEntryFromPage(resourceURIBuilder, post, path, !edit))).build();
         }
@@ -187,14 +179,14 @@ public class NewsFeed {
     public Response updateItem(@PathParam("key") String key, @PathParam("id") long id, @Context UriInfo info, InputStream stream) {
         User user = AuthenticatedUserThreadLocal.getUser();
 
-        BlogPost post = pageManager.getBlogPost(id);
+        BlogPost post = services.getPageManager().getBlogPost(id);
         if (post == null) {
             throw new IllegalArgumentException(String.format("No page with id %s found", id));
         }
         if (!post.getSpaceKey().equals(key)) {
             throw new IllegalArgumentException("Trying to get a page which does not belong in the space");
         }
-        if (permissionManager.hasPermission(user, Permission.EDIT, post)) {
+        if (services.getPermissionManager().hasPermission(user, Permission.EDIT, post)) {
             Document<Entry> doc = abdera.getParser().parse(stream);
             Entry entry = doc.getRoot();
             update(key, entry, post, info);
@@ -235,7 +227,7 @@ public class NewsFeed {
         //TODO: Consider adding support for moving stuff around... Setting the parent etc.
         DefaultSaveContext context = new DefaultSaveContext();
         context.setUpdateLastModifier(true);
-        pageManager.saveContentEntity(post, context);
+        services.getPageManager().saveContentEntity(post, context);
     }
 
     private Feed generate(Space parent, List<BlogPost> pages, UriBuilder baseURIBuilder, URI hostAndPort) {
@@ -247,12 +239,12 @@ public class NewsFeed {
         feed.addLink(spaceURIBuilder.build().toString(), Link.REL_SELF);
         feed.addLink(getResourceURIBuilder(baseURIBuilder).build().toString(), "up");
         for (BlogPost page : pages) {
-            feed.addEntry(createEntryFromPage(spaceURIBuilder, page, hostAndPort, true));
+            feed.addEntry(createEntryFromPage(spaceURIBuilder, page, hostAndPort, false));
         }
         return feed;
     }
 
-    private Entry createEntryFromPage(UriBuilder spaceURIBuilder, BlogPost post, URI hostAndPort, boolean xhtml) {
+    private Entry createEntryFromPage(UriBuilder spaceURIBuilder, BlogPost post, URI hostAndPort, boolean edit) {
         Entry entry = abdera.newEntry();
         UriBuilder builder = spaceURIBuilder.clone().segment(NEWS_SEGMENT).segment(post.getIdAsString());
         Link link = entry.addLink(UriBuilder.fromUri(hostAndPort).path(post.getUrlPath()).build().toString(), Link.REL_ALTERNATE);
@@ -271,7 +263,7 @@ public class NewsFeed {
         entry.setEdited(post.getLastModificationDate());
         entry.setUpdated(post.getLastModificationDate());
         entry.setPublished(post.getCreationDate());
-        entry.setContentElement(getContent(post, hostAndPort, xhtml));
+        entry.setContentElement(getContent(post, hostAndPort, !edit));
         //page.isDeleted() add a tombstone here.
         return entry;
     }
@@ -284,7 +276,7 @@ public class NewsFeed {
             String origType = context.getOutputType();
             context.setOutputType(RenderContextOutputType.HTML_EXPORT);
             context.setSiteRoot(baseURI.toString());
-            String value = wikiStyleRenderer.convertWikiToXHtml(context, post.getContent());
+            String value = services.getWikiStyleRenderer().convertWikiToXHtml(context, post.getContent());
             context.setOutputType(origType);
             content.setContentType(Content.Type.XHTML);
             content.setValue(tidyCleaner.clean(value));

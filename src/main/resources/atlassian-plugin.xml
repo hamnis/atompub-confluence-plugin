@@ -21,6 +21,8 @@
     <vendor name="${project.organization.name}" url="${project.organization.url}"/>
   </plugin-info>
 
+  <component key="services" class="net.hamnaberg.confluence.atompub.ConfluenceServices"/>
+
   <rest key="atompub" path="/atompub" version="1.0">
     <description>Provides atompub services.</description>
     <package>net.hamnaberg.confluence.atompub</package>
