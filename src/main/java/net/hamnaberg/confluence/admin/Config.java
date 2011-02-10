@@ -16,6 +16,9 @@
 
 package net.hamnaberg.confluence.admin;
 
+import org.apache.commons.lang.builder.ToStringBuilder;
+import org.apache.commons.lang.builder.ToStringStyle;
+
 import javax.xml.bind.annotation.XmlElement;
 import javax.xml.bind.annotation.XmlRootElement;
 
@@ -49,7 +52,7 @@ public class Config {
     }
 
     public void setPage(CacheControlConfig page) {
-        this.page = page;
+        this.page = page == null ? new CacheControlConfig() : page;
     }
 
     public CacheControlConfig getPageFeed() {
@@ -57,7 +60,7 @@ public class Config {
     }
 
     public void setPageFeed(CacheControlConfig pageFeed) {
-        this.pageFeed = pageFeed;
+        this.pageFeed = pageFeed == null ? new CacheControlConfig() : pageFeed;
     }
 
     public CacheControlConfig getNewsFeed() {
@@ -65,7 +68,7 @@ public class Config {
     }
 
     public void setNewsFeed(CacheControlConfig newsFeed) {
-        this.newsFeed = newsFeed;
+        this.newsFeed = newsFeed == null ? new CacheControlConfig() : newsFeed;
     }
 
     public CacheControlConfig getNews() {
@@ -73,10 +76,35 @@ public class Config {
     }
 
     public void setNews(CacheControlConfig news) {
-        this.news = news;
+        this.news = news == null ? new CacheControlConfig() : news;
     }
 
-    public boolean shouldDefault() {
-        return page == null && pageFeed == null && newsFeed == null && news == null;
+    @Override
+    public String toString() {
+        return ToStringBuilder.reflectionToString(this, ToStringStyle.MULTI_LINE_STYLE);
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+
+        Config config = (Config) o;
+
+        if (news != null ? !news.equals(config.news) : config.news != null) return false;
+        if (newsFeed != null ? !newsFeed.equals(config.newsFeed) : config.newsFeed != null) return false;
+        if (page != null ? !page.equals(config.page) : config.page != null) return false;
+        if (pageFeed != null ? !pageFeed.equals(config.pageFeed) : config.pageFeed != null) return false;
+
+        return true;
+    }
+
+    @Override
+    public int hashCode() {
+        int result = page != null ? page.hashCode() : 0;
+        result = 31 * result + (pageFeed != null ? pageFeed.hashCode() : 0);
+        result = 31 * result + (newsFeed != null ? newsFeed.hashCode() : 0);
+        result = 31 * result + (news != null ? news.hashCode() : 0);
+        return result;
     }
 }

@@ -16,6 +16,8 @@
 
 package net.hamnaberg.confluence.admin;
 
+import org.apache.commons.lang.builder.ToStringBuilder;
+import org.apache.commons.lang.builder.ToStringStyle;
 import org.apache.commons.lang.math.NumberUtils;
 
 import javax.ws.rs.core.CacheControl;
@@ -33,9 +35,9 @@ import java.util.Map;
  */
 @XmlRootElement(name = "config")
 public class CacheControlConfig {
-    @XmlElement(name = "ttl") private int ttl = 300;
-    @XmlElement(name = "transform") private boolean transform = false;
-    @XmlElement(name = "revalidate") private boolean revalidate = false;
+    @XmlElement(name = "ttl") private int ttl;
+    @XmlElement(name = "transform") private boolean transform;
+    @XmlElement(name = "revalidate") private boolean revalidate;
 
     public CacheControlConfig(int ttl, boolean transform, boolean revalidate) {
         this.ttl = ttl;
@@ -44,6 +46,7 @@ public class CacheControlConfig {
     }
 
     public CacheControlConfig() {
+        this(300, false, false);
     }
 
     public int getTtl() {
@@ -86,12 +89,39 @@ public class CacheControlConfig {
         return map;
     }
 
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+
+        CacheControlConfig that = (CacheControlConfig) o;
+
+        if (revalidate != that.revalidate) return false;
+        if (transform != that.transform) return false;
+        if (ttl != that.ttl) return false;
+
+        return true;
+    }
+
+    @Override
+    public int hashCode() {
+        int result = ttl;
+        result = 31 * result + (transform ? 1 : 0);
+        result = 31 * result + (revalidate ? 1 : 0);
+        return result;
+    }
+
+    @Override
+    public String toString() {
+        return ToStringBuilder.reflectionToString(this, ToStringStyle.MULTI_LINE_STYLE);
+    }
+
     public static CacheControlConfig fromMap(Map<String, String> map) {
-        if (map == null) {
+        if (map == null || map.isEmpty()) {
             return null;
         }
         return new CacheControlConfig(
-                NumberUtils.toInt(map.get("ttl"), 0),
+                NumberUtils.toInt(map.get("ttl"), 300),
                 Boolean.parseBoolean(map.get("transform")),
                 Boolean.parseBoolean(map.get("revalidate"))
                 );

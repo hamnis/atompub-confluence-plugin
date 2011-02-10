@@ -21,6 +21,7 @@ import com.atlassian.sal.api.pluginsettings.PluginSettingsFactory;
 import com.atlassian.sal.api.transaction.TransactionCallback;
 import com.atlassian.sal.api.transaction.TransactionTemplate;
 
+import java.util.Collections;
 import java.util.Map;
 
 /**
@@ -45,16 +46,21 @@ public class ConfigurationAccessor {
             public Config doInTransaction() {
                 PluginSettings settings = pluginSettingsFactory.createGlobalSettings();
                 Config config = new Config();
-                config.setPage(CacheControlConfig.fromMap((Map<String, String>) settings.get(name("page"))));
-                config.setPageFeed(CacheControlConfig.fromMap((Map<String, String>) settings.get(name("page_feed"))));
-                config.setNewsFeed(CacheControlConfig.fromMap((Map<String, String>) settings.get(name("news_feed"))));
-                config.setNews(CacheControlConfig.fromMap((Map<String, String>) settings.get(name("news"))));
-                if (config.shouldDefault()) {
-                    config = new Config();
-                }
+                config.setPage(CacheControlConfig.fromMap(get(settings, "page")));
+                config.setPageFeed(CacheControlConfig.fromMap(get(settings, "page_feed")));
+                config.setNewsFeed(CacheControlConfig.fromMap(get(settings, "news_feed")));
+                config.setNews(CacheControlConfig.fromMap(get(settings, "news")));
                 return config;
             }
         });
+    }
+
+    @SuppressWarnings({"unchecked"})
+    private Map<String, String> get(PluginSettings settings, String key) {
+        if (settings instanceof Map) {
+            return (Map<String, String>) settings.get(name(key));
+        }
+        return Collections.emptyMap();
     }
 
     public void setConfig(final Config config) {
