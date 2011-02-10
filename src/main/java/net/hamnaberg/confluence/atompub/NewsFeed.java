@@ -106,7 +106,8 @@ public class NewsFeed {
             }
             Feed feed = generate(space, pages, info.getBaseUriBuilder(), path);
             result.populate(feed);
-            return Response.ok(new AbderaResponseOutput(feed)).build();
+            CacheControl cc = services.getConfigurationAccessor().getConfig().getNewsFeed().toCacheControl();
+            return Response.ok(new AbderaResponseOutput(feed)).cacheControl(cc).build();
         } catch (InvalidSearchException e) {
             throw new RuntimeException(e);
         }
@@ -169,7 +170,8 @@ public class NewsFeed {
         }
         if (services.getPermissionManager().hasPermission(user, edit ? Permission.EDIT : Permission.VIEW, post)) {
             UriBuilder resourceURIBuilder = getResourceURIBuilder(info.getBaseUriBuilder()).segment(key);
-            return Response.ok(new AbderaResponseOutput(createEntryFromPage(resourceURIBuilder, post, path, !edit))).build();
+            CacheControl cc = services.getConfigurationAccessor().getConfig().getNews().toCacheControl();
+            return Response.ok(new AbderaResponseOutput(createEntryFromPage(resourceURIBuilder, post, path, !edit))).cacheControl(cc).build();
         }
         return Response.status(Response.Status.FORBIDDEN).build();
     }
