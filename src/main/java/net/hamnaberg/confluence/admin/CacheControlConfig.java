@@ -18,6 +18,7 @@ package net.hamnaberg.confluence.admin;
 
 import org.apache.commons.lang.math.NumberUtils;
 
+import javax.ws.rs.core.CacheControl;
 import javax.xml.bind.annotation.XmlElement;
 import javax.xml.bind.annotation.XmlRootElement;
 import java.util.HashMap;
@@ -67,6 +68,14 @@ public class CacheControlConfig {
 
     public void setRevalidate(boolean revalidate) {
         this.revalidate = revalidate;
+    }
+
+    public CacheControl toCacheControl() {
+        CacheControl cc = new CacheControl();
+        cc.setMaxAge(ttl);
+        cc.setMustRevalidate(revalidate);
+        cc.setNoTransform(transform);
+        return cc;
     }
 
     public Map<String, String> toMap() {

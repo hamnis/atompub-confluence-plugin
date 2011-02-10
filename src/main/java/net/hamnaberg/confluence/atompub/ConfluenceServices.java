@@ -23,6 +23,7 @@ import com.atlassian.confluence.spaces.SpaceManager;
 import com.atlassian.renderer.WikiStyleRenderer;
 import com.atlassian.sal.api.pluginsettings.PluginSettingsFactory;
 import com.atlassian.sal.api.transaction.TransactionTemplate;
+import net.hamnaberg.confluence.admin.ConfigurationAccessor;
 
 /**
  * Created by IntelliJ IDEA.
@@ -37,8 +38,7 @@ public class ConfluenceServices {
     private final WikiStyleRenderer wikiStyleRenderer;
     private final SearchManager searchManager;
     private final PermissionManager permissionManager;
-    private final TransactionTemplate transactionTemplate;
-    private final PluginSettingsFactory pluginSettingsFactory;
+    private final ConfigurationAccessor configurationAccessor;
 
     public ConfluenceServices(PageManager pageManager, SpaceManager spaceManager, WikiStyleRenderer wikiStyleRenderer, SearchManager searchManager, PermissionManager permissionManager, TransactionTemplate transactionTemplate, PluginSettingsFactory pluginSettingsFactory) {
         this.pageManager = pageManager;
@@ -46,8 +46,7 @@ public class ConfluenceServices {
         this.wikiStyleRenderer = wikiStyleRenderer;
         this.searchManager = searchManager;
         this.permissionManager = permissionManager;
-        this.transactionTemplate = transactionTemplate;
-        this.pluginSettingsFactory = pluginSettingsFactory;
+        this.configurationAccessor = new ConfigurationAccessor(transactionTemplate, pluginSettingsFactory);
     }
 
     public PageManager getPageManager() {
@@ -70,11 +69,7 @@ public class ConfluenceServices {
         return permissionManager;
     }
 
-    public TransactionTemplate getTransactionTemplate() {
-        return transactionTemplate;
-    }
-
-    public PluginSettingsFactory getPluginSettingsFactory() {
-        return pluginSettingsFactory;
+    public ConfigurationAccessor getConfigurationAccessor() {
+        return configurationAccessor;
     }
 }
