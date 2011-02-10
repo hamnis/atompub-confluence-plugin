@@ -16,6 +16,7 @@
 
 package net.hamnaberg.confluence.atompub;
 
+import bucket.core.comparators.*;
 import com.atlassian.confluence.core.DefaultSaveContext;
 import com.atlassian.confluence.core.ListBuilder;
 import com.atlassian.confluence.pages.Page;

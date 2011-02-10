@@ -16,6 +16,7 @@
 
 package net.hamnaberg.confluence.atompub;
 
+import bucket.core.comparators.LastModificationDateComparator;
 import com.atlassian.confluence.security.SpacePermission;
 import com.atlassian.confluence.spaces.Space;
 import com.atlassian.confluence.spaces.SpaceManager;
