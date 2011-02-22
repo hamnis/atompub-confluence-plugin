@@ -39,6 +39,7 @@ import javax.ws.rs.core.Context;
 import javax.ws.rs.core.Response;
 import javax.ws.rs.core.UriBuilder;
 import javax.ws.rs.core.UriInfo;
+import java.net.URI;
 import java.util.*;
 
 @Path("spaces")
@@ -62,6 +63,7 @@ public class SpaceFeed {
 
     @GET
     public Response spaces(@Context UriInfo info) {
+        URI root = info.getBaseUriBuilder().replacePath("").build();
         User user = AuthenticatedUserThreadLocal.getUser();
         Feed feed = abdera.newFeed();
         feed.setId(info.getRequestUri().toString());
@@ -77,7 +79,7 @@ public class SpaceFeed {
             feed.setUpdated(new Date());
         }
         for (Space space : spaces) {
-            Entry entry = createSpaceEntry(uriBuilder, space);
+            Entry entry = createSpaceEntry(uriBuilder, space, root);
             feed.addEntry(entry);
         }
         return Response.ok(new AbderaResponseOutput(feed)).build();
@@ -86,6 +88,7 @@ public class SpaceFeed {
     @Path("{key}")
     @GET
     public Response space(@Context UriInfo info, @PathParam("key") String key) {
+        URI root = info.getBaseUriBuilder().replacePath("").build();
         Space space = null;
         try {
             space = spaceManager.getSpace(key);
@@ -95,11 +98,11 @@ public class SpaceFeed {
         if (space == null) {
             return Response.status(404).build();
         }
-        Entry entry = createSpaceEntry(info.getBaseUriBuilder().path(getClass()), space);
+        Entry entry = createSpaceEntry(info.getBaseUriBuilder().path(getClass()), space, root);
         return Response.ok(new AbderaResponseOutput(entry)).build();
     }
 
-    private Entry createSpaceEntry(UriBuilder uriBuilder, Space space) {
+    private Entry createSpaceEntry(UriBuilder uriBuilder, Space space, URI root) {
         Entry entry = abdera.newEntry();
         entry.setId("urn:confluence:space:id:" + space.getId());
         entry.setTitle(space.getName());
@@ -108,7 +111,7 @@ public class SpaceFeed {
         entry.setUpdated(space.getLastModificationDate());
         entry.setSummary("");
         entry.addLink(uriBuilder.clone().path(space.getKey()).build().toString(), Link.REL_SELF);
-        Link link = entry.addLink(space.getHomePage().getUrlPath(), Link.REL_ALTERNATE);
+        Link link = entry.addLink(UriBuilder.fromUri(root).path(space.getHomePage().getUrlPath()).build().toString(), Link.REL_ALTERNATE);
         link.setMimeType("text/html");
         entry.addExtension(createCollection(uriBuilder, space, "pages"));
         entry.addExtension(createCollection(uriBuilder, space, "news"));
