@@ -95,6 +95,7 @@ public class PagesFeed {
         if (services.getPermissionManager().hasCreatePermission(user, space, Page.class)) {
             Document<Entry> document = abdera.getParser().parse(stream);
             Entry entry = document.getRoot();
+            ConfluenceUtil.validateCategories(entry, ConfluenceUtil.createCategory(ConfluenceUtil.PAGE_TERM));
             Page page = new Page();
             page.setTitle(entry.getTitle());
             page.setSpace(space);
@@ -282,15 +283,18 @@ public class PagesFeed {
         entry.setEdited(page.getLastModificationDate());
         entry.setUpdated(page.getLastModificationDate());
         entry.setPublished(page.getCreationDate());
-        entry.setContentElement(getContent(page, hostAndPort, !edit));
+        entry.setContentElement(getContent(page, hostAndPort, edit));
         //page.isDeleted() add a tombstone here.
         return entry;
     }
 
-    private Content getContent(Page page, URI baseURI, boolean xhtml) {
+    private Content getContent(Page page, URI baseURI, boolean edit) {
         Content content = abdera.getFactory().newContent();
 
-        if (xhtml) {
+        if (edit) {
+            content.setContentType(Content.Type.TEXT);
+            content.setValue(page.getContent());
+        } else {
             PageContext context = page.toPageContext();
             String origType = context.getOutputType();
             context.setOutputType(RenderContextOutputType.HTML_EXPORT);
@@ -299,9 +303,6 @@ public class PagesFeed {
             context.setOutputType(origType);
             content.setContentType(Content.Type.XHTML);
             content.setValue(tidyCleaner.clean(value));
-        } else {
-            content.setContentType(Content.Type.TEXT);
-            content.setValue(page.getContent());
         }
 
         return content;

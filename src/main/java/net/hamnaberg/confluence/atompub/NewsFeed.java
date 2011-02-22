@@ -19,25 +19,20 @@ package net.hamnaberg.confluence.atompub;
 import com.atlassian.bonnie.Searchable;
 import com.atlassian.confluence.core.DefaultSaveContext;
 import com.atlassian.confluence.pages.BlogPost;
-import com.atlassian.confluence.pages.PageManager;
 import com.atlassian.confluence.renderer.PageContext;
 import com.atlassian.confluence.search.service.ContentTypeEnum;
 import com.atlassian.confluence.search.v2.ContentSearch;
 import com.atlassian.confluence.search.v2.InvalidSearchException;
-import com.atlassian.confluence.search.v2.SearchManager;
 import com.atlassian.confluence.search.v2.SearchSort;
 import com.atlassian.confluence.search.v2.filter.SubsetResultFilter;
 import com.atlassian.confluence.search.v2.query.ContentTypeQuery;
 import com.atlassian.confluence.search.v2.searchfilter.InSpaceSearchFilter;
 import com.atlassian.confluence.search.v2.sort.ModifiedSort;
 import com.atlassian.confluence.security.Permission;
-import com.atlassian.confluence.security.PermissionManager;
 import com.atlassian.confluence.spaces.Space;
-import com.atlassian.confluence.spaces.SpaceManager;
 import com.atlassian.confluence.user.AuthenticatedUserThreadLocal;
 import com.atlassian.plugins.rest.common.security.AnonymousAllowed;
 import com.atlassian.renderer.RenderContextOutputType;
-import com.atlassian.renderer.WikiStyleRenderer;
 import com.atlassian.user.User;
 import org.apache.abdera.Abdera;
 import org.apache.abdera.model.*;
@@ -125,6 +120,7 @@ public class NewsFeed {
             Document<Entry> document = abdera.getParser().parse(stream);
             Entry entry = document.getRoot();
             BlogPost post = new BlogPost();
+            ConfluenceUtil.validateCategories(entry, ConfluenceUtil.createCategory(ConfluenceUtil.NEWS_TERM));
             post.setTitle(entry.getTitle());
             post.setSpace(space);
             Content content = entry.getContentElement();
@@ -143,7 +139,7 @@ public class NewsFeed {
 
         return Response.status(Response.Status.FORBIDDEN).build();
     }
-    
+
 
     @Path("{id}")
     @GET
@@ -171,7 +167,7 @@ public class NewsFeed {
         if (services.getPermissionManager().hasPermission(user, edit ? Permission.EDIT : Permission.VIEW, post)) {
             UriBuilder resourceURIBuilder = getResourceURIBuilder(info.getBaseUriBuilder()).segment(key);
             CacheControl cc = services.getConfigurationAccessor().getConfig().getNews().toCacheControl();
-            return Response.ok(new AbderaResponseOutput(createEntryFromPage(resourceURIBuilder, post, path, !edit))).cacheControl(cc).build();
+            return Response.ok(new AbderaResponseOutput(createEntryFromPage(resourceURIBuilder, post, path, edit))).cacheControl(cc).build();
         }
         return Response.status(Response.Status.FORBIDDEN).build();
     }
@@ -200,7 +196,7 @@ public class NewsFeed {
     private void update(String key, Entry entry, BlogPost post, UriInfo info) {
         URI path = info.getBaseUriBuilder().replacePath("").build();
         UriBuilder resourceURIBuilder = getResourceURIBuilder(info.getBaseUriBuilder()).segment(key);
-        Entry entryFromPage = createEntryFromPage(resourceURIBuilder, post, path, false);
+        Entry entryFromPage = createEntryFromPage(resourceURIBuilder, post, path, true);
         if (!entryFromPage.getId().equals(entry.getId())) {
             throw new IllegalArgumentException("Wrong ID specified");
         }
@@ -265,15 +261,18 @@ public class NewsFeed {
         entry.setEdited(post.getLastModificationDate());
         entry.setUpdated(post.getLastModificationDate());
         entry.setPublished(post.getCreationDate());
-        entry.setContentElement(getContent(post, hostAndPort, !edit));
+        entry.setContentElement(getContent(post, hostAndPort, edit));
         //page.isDeleted() add a tombstone here.
         return entry;
     }
 
-    private Content getContent(BlogPost post, URI baseURI, boolean xhtml) {
+    private Content getContent(BlogPost post, URI baseURI, boolean edit) {
         Content content = abdera.getFactory().newContent();
 
-        if (xhtml) {
+        if (edit) {
+            content.setContentType(Content.Type.TEXT);
+            content.setValue(post.getContent());
+        } else {
             PageContext context = post.toPageContext();
             String origType = context.getOutputType();
             context.setOutputType(RenderContextOutputType.HTML_EXPORT);
@@ -282,9 +281,6 @@ public class NewsFeed {
             context.setOutputType(origType);
             content.setContentType(Content.Type.XHTML);
             content.setValue(tidyCleaner.clean(value));
-        } else {
-            content.setContentType(Content.Type.TEXT);
-            content.setValue(post.getContent());
         }
 
         return content;
@@ -293,5 +289,4 @@ public class NewsFeed {
     private UriBuilder getResourceURIBuilder(UriBuilder baseUriBuilder) {
         return baseUriBuilder.clone().path(SpaceFeed.class);
     }
-
 }
