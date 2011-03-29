@@ -66,28 +66,28 @@
       <scope>test</scope>
     </dependency>
     <dependency>
-        <groupId>javax.ws.rs</groupId>
-        <artifactId>jsr311-api</artifactId>
-        <version>1.0</version>
-        <scope>provided</scope>
+      <groupId>javax.ws.rs</groupId>
+      <artifactId>jsr311-api</artifactId>
+      <version>1.0</version>
+      <scope>provided</scope>
     </dependency>
     <dependency>
-        <groupId>javax.xml.bind</groupId>
-        <artifactId>jaxb-api</artifactId>
-        <version>2.1</version>
-        <scope>provided</scope>
+      <groupId>javax.xml.bind</groupId>
+      <artifactId>jaxb-api</artifactId>
+      <version>2.1</version>
+      <scope>provided</scope>
     </dependency>
     <dependency>
-        <groupId>com.atlassian.plugins.rest</groupId>
-        <artifactId>atlassian-rest-common</artifactId>
-        <version>2.3.1</version>
-        <scope>provided</scope>
+      <groupId>com.atlassian.plugins.rest</groupId>
+      <artifactId>atlassian-rest-common</artifactId>
+      <version>2.3.1</version>
+      <scope>provided</scope>
     </dependency>
     <dependency>
-        <groupId>javax.servlet</groupId>
-        <artifactId>servlet-api</artifactId>
-        <version>2.4</version>
-        <scope>provided</scope>
+      <groupId>javax.servlet</groupId>
+      <artifactId>servlet-api</artifactId>
+      <version>2.4</version>
+      <scope>provided</scope>
     </dependency>
     <dependency>
       <groupId>org.mockito</groupId>
@@ -106,20 +106,20 @@
       <version>1.1.1</version>
       <exclusions>
         <exclusion>
-            <groupId>org.apache.abdera</groupId>
-            <artifactId>abdera-server</artifactId>
+          <groupId>org.apache.abdera</groupId>
+          <artifactId>abdera-server</artifactId>
         </exclusion>
         <exclusion>
-            <groupId>org.apache.abdera</groupId>
-            <artifactId>abdera-client</artifactId>
+          <groupId>org.apache.abdera</groupId>
+          <artifactId>abdera-client</artifactId>
         </exclusion>
       </exclusions>
     </dependency>
     <dependency>
-        <groupId>com.atlassian.templaterenderer</groupId>
-        <artifactId>atlassian-template-renderer-api</artifactId>
-        <version>1.2.3</version>
-        <scope>provided</scope>
+      <groupId>com.atlassian.templaterenderer</groupId>
+      <artifactId>atlassian-template-renderer-api</artifactId>
+      <version>1.2.3</version>
+      <scope>provided</scope>
     </dependency>
   </dependencies>
 
@@ -150,6 +150,18 @@
     <developerConnection>scm:git:git@github.com:hamnis/atompub-confluence-plugin.git</developerConnection>
   </scm>
 
+  <distributionManagement>
+    <repository>
+      <id>atlassian-contrib</id>
+      <name>Atlassian Contrib Repository</name>
+      <url>dav:https://maven.atlassian.com/contrib</url>
+    </repository>
+    <snapshotRepository>
+      <id>atlassian-contrib-snapshot</id>
+      <name>Atlassian Contrib Snapshot Repository</name>
+      <url>dav:https://maven.atlassian.com/contrib-snapshot</url>
+    </snapshotRepository>
+  </distributionManagement>
   <properties>
     <confluence.version>3.4.1</confluence.version>
     <confluence.data.version>3.1</confluence.data.version>
