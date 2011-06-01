@@ -51,7 +51,7 @@ public class Search {
     public Response getDescription(@Context UriInfo info) {
         Factory factory = Abdera.getNewFactory();
         OpenSearchDescription description = new OpenSearchDescription(factory);
-        description.setDescription("Search for pages and blogs in all spaces");
+        description.setDescription("Search for pages and news in all spaces");
         description.setShortName("confluence-all");
         Url url = new Url(factory);
         url.setTemplate(info.getBaseUriBuilder().segment("search").build().toString() + "?q={query}");
@@ -71,12 +71,15 @@ public class Search {
     public Response getDescription(@PathParam("space") String space, @Context UriInfo info) {
         Factory factory = Abdera.getNewFactory();
         OpenSearchDescription description = new OpenSearchDescription(factory);
-        description.setDescription(String.format("Search for pages in space %s using Lucene syntax", space));
-        description.setShortName("confluence-all");
+        description.setDescription(String.format("Search for pages and news in space %s", space));
+        description.setShortName("confluence-space-search");
         Url url = new Url(factory);
         url.setTemplate(info.getBaseUriBuilder().segment("search", "space", space).build().toString() + "?q={query}");
         description.addUrls(url);
-
+        Query query = new Query(factory);
+        query.setRole(Query.Role.EXAMPLE);
+        query.setSearchTerms("confluence");
+        description.addQueries(query);
         CacheControl cc = new CacheControl();
         cc.setMaxAge(24 * 3600 * 365);
         return Response.ok(new AbderaResponseOutput(description)).cacheControl(cc).build();
@@ -111,9 +114,6 @@ public class Search {
             pageNo = 1;
         }
         if (StringUtils.isBlank(query)) {
-            actualQuery.setStartIndex(0);
-            actualQuery.setCount(0);
-            actualQuery.setTotalResults(0);
             feed.setTitle("No results");
             feed.addExtension(actualQuery);
         } else {
@@ -139,7 +139,8 @@ public class Search {
                 );
 
                 ContentSearch contentSearch = new ContentSearch(booleanQuery, new RelevanceSort(), null, new SubsetResultFilter(pageNo, PAGE_SIZE));
-                List<Searchable> searchables = services.getSearchManager().searchEntities(contentSearch);
+                SearchResults results = services.getSearchManager().search(contentSearch);
+                List<Searchable> searchables = services.getSearchManager().convertToEntities(results, true);
 
                 Collection<Searchable> filtered = Collections2.filter(searchables, new Predicate<Searchable>() {
                     public boolean apply(Searchable input) {
@@ -147,7 +148,7 @@ public class Search {
                     }
                 });
                 Collection<Entry> entries = Collections2.transform(filtered, new Searchable2Entry(factory, info.getBaseUriBuilder()));
-                PagedResult result = new PagedResult(filtered.size(), pageNo, PAGE_SIZE, info.getRequestUriBuilder());
+                PagedResult result = new PagedResult(results.getUnfilteredResultsCount(), pageNo, PAGE_SIZE, info.getRequestUriBuilder());
                 result.populate(feed);
                 for (Entry entry : entries) {
                     feed.addEntry(entry);
