@@ -84,7 +84,7 @@ public class NewsFeed {
         }
         try {
             int availableSize = services.getSpaceManager().getNumberOfBlogPosts(space);
-            PagedResult result = new PagedResult(availableSize, pageNo, PAGE_SIZE, info.getBaseUriBuilder());
+            PagedResult result = new PagedResult(availableSize, pageNo, PAGE_SIZE, info.getRequestUriBuilder());
             List<Searchable> searchables = services.getSearchManager().searchEntities(
                     new ContentSearch(
                             new ContentTypeQuery(ContentTypeEnum.BLOG),

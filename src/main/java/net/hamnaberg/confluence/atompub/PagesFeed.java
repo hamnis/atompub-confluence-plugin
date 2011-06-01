@@ -50,7 +50,7 @@ import java.util.*;
 @Consumes("application/atom+xml")
 @AnonymousAllowed
 public class PagesFeed {
-    private static final int PAGE_SIZE = 10;
+    private static final int PAGE_SIZE = 50;
     private static final String PAGES_SEGMENT = "pages";
 
     private TidyCleaner tidyCleaner;
@@ -120,13 +120,13 @@ public class PagesFeed {
     @Path("{id}")
     @GET
     public Response page(@PathParam("key") String key, @PathParam("id") long id, @Context UriInfo info) {
-        return getPage(key, id, info, true);
+        return getPage(key, id, info, false);
     }
 
     @Path("{id}/edit")
     @GET
     public Response editablePage(@PathParam("key") String key, @PathParam("id") long id, @Context UriInfo info) {
-        return getPage(key, id, info, false);
+        return getPage(key, id, info, true);
     }
 
     private Response getPage(String key, long id, UriInfo info, boolean edit) {
@@ -239,7 +239,7 @@ public class PagesFeed {
             Page page = (Page) parent;
             spaceURIBuilder = getResourceURIBuilder(baseURIBuilder).clone().segment(page.getSpaceKey());
             self = getResourceURIBuilder(baseURIBuilder).clone().segment(page.getSpaceKey()).segment(PAGES_SEGMENT).segment(page.getIdAsString()).build();
-            feed.setTitle("Children of " + ((Page) parent).getTitle());
+            feed.setTitle("Children of " + ((Page) parent).getDisplayTitle());
             feed.setId("urn:confluence:page:id:" + parent.getId());
         } else if (parent instanceof Space) {
             feed.setTitle(((Space) parent).getName());
@@ -272,7 +272,7 @@ public class PagesFeed {
         entry.addLink(builder.build().toString(), Link.REL_SELF);
         entry.addLink(builder.clone().segment("edit").build().toString(), Link.REL_EDIT);
         entry.addCategory(ConfluenceUtil.createCategory(ConfluenceUtil.PAGE_TERM));
-        entry.setTitle(page.getTitle());
+        entry.setTitle(page.getDisplayTitle());
 
         String name = page.getCreatorName();
         if (name == null) {

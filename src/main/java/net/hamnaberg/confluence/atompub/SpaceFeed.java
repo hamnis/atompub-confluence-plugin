@@ -27,6 +27,7 @@ import com.atlassian.core.bean.EntityObject;
 import com.atlassian.plugins.rest.common.security.AnonymousAllowed;
 import com.atlassian.user.User;
 import org.apache.abdera.Abdera;
+import org.apache.abdera.ext.opensearch.OpenSearchConstants;
 import org.apache.abdera.model.Collection;
 import org.apache.abdera.model.Entry;
 import org.apache.abdera.model.Feed;
@@ -79,7 +80,7 @@ public class SpaceFeed {
             feed.setUpdated(new Date());
         }
         for (Space space : spaces) {
-            Entry entry = createSpaceEntry(uriBuilder, space, root);
+            Entry entry = createSpaceEntry(info, uriBuilder, space, root);
             feed.addEntry(entry);
         }
         return Response.ok(new AbderaResponseOutput(feed)).build();
@@ -98,11 +99,11 @@ public class SpaceFeed {
         if (space == null) {
             return Response.status(404).build();
         }
-        Entry entry = createSpaceEntry(info.getBaseUriBuilder().path(getClass()), space, root);
+        Entry entry = createSpaceEntry(info, info.getBaseUriBuilder().path(getClass()), space, root);
         return Response.ok(new AbderaResponseOutput(entry)).build();
     }
 
-    private Entry createSpaceEntry(UriBuilder uriBuilder, Space space, URI root) {
+    private Entry createSpaceEntry(UriInfo info, UriBuilder uriBuilder, Space space, URI root) {
         Entry entry = abdera.newEntry();
         entry.setId("urn:confluence:space:id:" + space.getId());
         entry.setTitle(space.getName());
@@ -111,6 +112,8 @@ public class SpaceFeed {
         entry.setUpdated(space.getLastModificationDate());
         entry.setSummary("");
         entry.addLink(uriBuilder.clone().path(space.getKey()).build().toString(), Link.REL_SELF);
+        Link searchLink = entry.addLink(info.getBaseUriBuilder().segment("search", "description").build().toString(), "search");
+        searchLink.setMimeType(OpenSearchConstants.OPENSEARCH_DESCRIPTION_CONTENT_TYPE);
         Link link = entry.addLink(UriBuilder.fromUri(root).path(space.getHomePage().getUrlPath()).build().toString(), Link.REL_ALTERNATE);
         link.setMimeType("text/html");
         entry.addExtension(createCollection(uriBuilder, space, "pages"));

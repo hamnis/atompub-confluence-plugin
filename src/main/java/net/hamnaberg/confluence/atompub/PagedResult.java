@@ -82,7 +82,7 @@ public class PagedResult {
         }
         Link link = abdera.getFactory().newLink();
         link.setRel(Link.REL_NEXT);
-        link.setHref(baseURIBuilder.clone().queryParam("pw", pageNo + 1).build().toString());
+        link.setHref(baseURIBuilder.clone().replaceQueryParam("pw", pageNo + 1).build().toString());
         return link;
     }
 
@@ -92,7 +92,7 @@ public class PagedResult {
         }
         Link link = abdera.getFactory().newLink();
         link.setRel(Link.REL_PREVIOUS);
-        link.setHref(baseURIBuilder.clone().queryParam("pw", pageNo - 1).build().toString());
+        link.setHref(baseURIBuilder.clone().replaceQueryParam("pw", pageNo - 1).build().toString());
         return link;
     }
 
@@ -102,7 +102,7 @@ public class PagedResult {
         }
         Link link = abdera.getFactory().newLink();
         link.setRel(Link.REL_FIRST);
-        link.setHref(baseURIBuilder.clone().queryParam("pw", 1).build().toString());
+        link.setHref(baseURIBuilder.clone().replaceQueryParam("pw", 1).build().toString());
         return link;
     }
 
@@ -112,7 +112,7 @@ public class PagedResult {
         }
         Link link = abdera.getFactory().newLink();
         link.setRel(Link.REL_LAST);
-        link.setHref(baseURIBuilder.clone().queryParam("pw", totalPages).build().toString());
+        link.setHref(baseURIBuilder.clone().replaceQueryParam("pw", totalPages).build().toString());
         return link;
     }
 
