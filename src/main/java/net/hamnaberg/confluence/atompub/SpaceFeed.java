@@ -69,6 +69,8 @@ public class SpaceFeed {
         Feed feed = abdera.newFeed();
         feed.setId(info.getRequestUri().toString());
         feed.setTitle("Confluence Space feed");
+        Link searchLink = feed.addLink(info.getBaseUriBuilder().segment("search", "description").build().toString(), "search");
+        searchLink.setMimeType(OpenSearchConstants.OPENSEARCH_DESCRIPTION_CONTENT_TYPE);
         SpacesQuery query = SpacesQuery.newQuery().forUser(user).withSpaceType(SpaceType.GLOBAL).withPermission(SpacePermission.VIEWSPACE_PERMISSION).build();
         List<Space> spaces = new ArrayList<Space>(spaceManager.getAllSpaces(query));
         Collections.sort(spaces, reverseLastModifiedComporator);
@@ -112,7 +114,7 @@ public class SpaceFeed {
         entry.setUpdated(space.getLastModificationDate());
         entry.setSummary("");
         entry.addLink(uriBuilder.clone().path(space.getKey()).build().toString(), Link.REL_SELF);
-        Link searchLink = entry.addLink(info.getBaseUriBuilder().segment("search", "description").build().toString(), "search");
+        Link searchLink = entry.addLink(info.getBaseUriBuilder().segment("search", "space", space.getKey(), "description").build().toString(), "search");
         searchLink.setMimeType(OpenSearchConstants.OPENSEARCH_DESCRIPTION_CONTENT_TYPE);
         Link link = entry.addLink(UriBuilder.fromUri(root).path(space.getHomePage().getUrlPath()).build().toString(), Link.REL_ALTERNATE);
         link.setMimeType("text/html");

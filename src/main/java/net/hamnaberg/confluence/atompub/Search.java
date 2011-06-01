@@ -67,7 +67,7 @@ public class Search {
 
     @GET
     @Produces(OpenSearchConstants.OPENSEARCH_DESCRIPTION_CONTENT_TYPE)
-    @Path("{space}/description")
+    @Path("space/{space}/description")
     public Response getDescription(@PathParam("space") String space, @Context UriInfo info) {
         Factory factory = Abdera.getNewFactory();
         OpenSearchDescription description = new OpenSearchDescription(factory);
@@ -93,7 +93,7 @@ public class Search {
 
     @GET
     @Produces(MediaType.APPLICATION_ATOM_XML)
-    @Path("{space}")
+    @Path("space/{space}")
     public Response searchSpace(@PathParam("space") String space, @QueryParam("q") String query, @QueryParam("pw") int pageNo, @Context final UriInfo info) {
         return doSearch(query, pageNo, space, info);
     }
