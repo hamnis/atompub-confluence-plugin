@@ -18,6 +18,8 @@ package net.hamnaberg.confluence.atompub;
 
 import com.atlassian.bonnie.Searchable;
 import com.atlassian.confluence.core.DefaultSaveContext;
+import com.atlassian.confluence.labels.Label;
+import com.atlassian.confluence.labels.Namespace;
 import com.atlassian.confluence.pages.BlogPost;
 import com.atlassian.confluence.renderer.PageContext;
 import com.atlassian.confluence.search.service.ContentTypeEnum;
@@ -36,6 +38,7 @@ import com.atlassian.renderer.RenderContextOutputType;
 import com.atlassian.user.User;
 import org.apache.abdera.Abdera;
 import org.apache.abdera.model.*;
+import org.apache.abdera.parser.ParserOptions;
 
 import javax.ws.rs.*;
 import javax.ws.rs.core.*;
@@ -114,20 +117,31 @@ public class NewsFeed {
         }
 
         if (services.getPermissionManager().hasCreatePermission(user, space, BlogPost.class)) {
-            Document<Entry> document = abdera.getParser().parse(stream);
+            ParserOptions options = abdera.getParser().getDefaultParserOptions();
+            options.setAutodetectCharset(false);
+            options.setCharset("UTF-8");
+            Document<Entry> document = abdera.getParser().parse(stream, options);
             Entry entry = document.getRoot();
             BlogPost post = new BlogPost();
             ConfluenceUtil.validateCategories(entry, ConfluenceUtil.createCategory(ConfluenceUtil.NEWS_TERM));
             post.setTitle(entry.getTitle());
             post.setSpace(space);
+            post.setCreatorName(user.getName());
             Content content = entry.getContentElement();
             if (content != null && content.getContentType() == Content.Type.TEXT) {
-                post.setContent(entry.getContent());
+                post.setContent(content.getValue());
 
             } else {
                 throw new IllegalArgumentException("Error in content. Expected text");
             }
-            services.getPageManager().saveContentEntity(post, new DefaultSaveContext());
+            DefaultSaveContext context = new DefaultSaveContext();
+            context.setUpdateLastModifier(true);
+            services.getPageManager().saveContentEntity(post, context);
+
+            for (Category cat : entry.getCategories(ConfluenceUtil.CONFLUENCE_LABEL_SCHEME)) {
+                services.getLabelManager().addLabel(post, ConfluenceUtil.createLabel(cat));
+            }
+
             if (post.getIdAsString() != null) {
                 return Response.created(info.getRequestUriBuilder().path(post.getIdAsString()).build()).build();
             }
@@ -189,7 +203,10 @@ public class NewsFeed {
             if (preconditions != null) {
                 return preconditions.build();
             }
-            Document<Entry> doc = abdera.getParser().parse(stream);
+            ParserOptions options = abdera.getParser().getDefaultParserOptions();
+            options.setAutodetectCharset(false);
+            options.setCharset("UTF-8");
+            Document<Entry> doc = abdera.getParser().parse(stream, options);
             Entry entry = doc.getRoot();
             update(key, entry, post, info);
             return Response.noContent().build();
@@ -223,9 +240,14 @@ public class NewsFeed {
         }
         //updating metadata.
         Link up = entry.getLink("up");
-        if (!entryFromPage.getLink("up").equals(up)) {
+        if (entryFromPage.getLink("up") != null && !entryFromPage.getLink("up").equals(up)) {
             throw new IllegalArgumentException(String.format("You are not allowed to move stuff around! (Yet) Parent must not change. Expected %s", entryFromPage.getLink("up")));
         }
+
+        for (Category cat : entry.getCategories(ConfluenceUtil.CONFLUENCE_LABEL_SCHEME)) {
+            services.getLabelManager().addLabel(post, ConfluenceUtil.createLabel(cat));
+        }
+
         //TODO: Consider adding support for moving stuff around... Setting the parent etc.
         DefaultSaveContext context = new DefaultSaveContext();
         context.setUpdateLastModifier(true);
@@ -266,6 +288,13 @@ public class NewsFeed {
         entry.setUpdated(post.getLastModificationDate());
         entry.setPublished(post.getCreationDate());
         entry.setContentElement(getContent(post, hostAndPort, edit));
+
+        List<Label> labels = post.getLabels();
+        for (Label label : labels) {
+            if (label.getNamespace().getPrefix().equals(Namespace.GLOBAL.getPrefix())) {
+                entry.addCategory(ConfluenceUtil.createCategoryLabel(label));
+            }
+        }
         //page.isDeleted() add a tombstone here.
         return entry;
     }

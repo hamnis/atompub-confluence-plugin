@@ -19,6 +19,8 @@ package net.hamnaberg.confluence.atompub;
 import bucket.core.comparators.*;
 import com.atlassian.confluence.core.DefaultSaveContext;
 import com.atlassian.confluence.core.ListBuilder;
+import com.atlassian.confluence.labels.Label;
+import com.atlassian.confluence.labels.Namespace;
 import com.atlassian.confluence.pages.Page;
 import com.atlassian.confluence.renderer.PageContext;
 import com.atlassian.confluence.security.Permission;
@@ -30,6 +32,7 @@ import com.atlassian.renderer.RenderContextOutputType;
 import com.atlassian.user.User;
 import org.apache.abdera.Abdera;
 import org.apache.abdera.model.*;
+import org.apache.abdera.parser.ParserOptions;
 
 import javax.ws.rs.*;
 import javax.ws.rs.core.*;
@@ -60,7 +63,6 @@ public class PagesFeed {
     public PagesFeed(ConfluenceServices services) {
         this.services = services;
         tidyCleaner = new TidyCleaner();
-
     }
 
     @GET
@@ -93,20 +95,33 @@ public class PagesFeed {
         }
 
         if (services.getPermissionManager().hasCreatePermission(user, space, Page.class)) {
-            Document<Entry> document = abdera.getParser().parse(stream);
+            ParserOptions options = abdera.getParser().getDefaultParserOptions();
+            options.setAutodetectCharset(false);
+            options.setCharset("UTF-8");
+            Document<Entry> document = abdera.getParser().parse(stream, options);
             Entry entry = document.getRoot();
             ConfluenceUtil.validateCategories(entry, ConfluenceUtil.createCategory(ConfluenceUtil.PAGE_TERM));
             Page page = new Page();
             page.setTitle(entry.getTitle());
             page.setSpace(space);
+            page.setCreatorName(user.getName());
+            page.setCreationDate(new Date());
+            page.setParentPage(space.getHomePage());
             Content content = entry.getContentElement();
             if (content != null && content.getContentType() == Content.Type.TEXT) {
-                page.setContent(entry.getContent());
+                page.setContent(content.getValue());
 
             } else {
                 throw new IllegalArgumentException("Error in content. Expected text");
             }
-            services.getPageManager().saveContentEntity(page, new DefaultSaveContext());
+            DefaultSaveContext context = new DefaultSaveContext();
+            context.setUpdateLastModifier(true);
+            services.getPageManager().saveContentEntity(page, context);
+
+            for (Category cat : entry.getCategories(ConfluenceUtil.CONFLUENCE_LABEL_SCHEME)) {
+                services.getLabelManager().addLabel(page, ConfluenceUtil.createLabel(cat));
+            }
+
             if (page.getIdAsString() != null) {
                 return Response.created(info.getRequestUriBuilder().path(page.getIdAsString()).build()).build();
             }
@@ -172,7 +187,10 @@ public class PagesFeed {
             if (preconditions != null) {
                 return preconditions.build();
             }
-            Document<Entry> doc = abdera.getParser().parse(stream);
+            ParserOptions options = abdera.getParser().getDefaultParserOptions();
+            options.setAutodetectCharset(false);
+            options.setCharset("UTF-8");
+            Document<Entry> doc = abdera.getParser().parse(stream, options).complete();
             Entry entry = doc.getRoot();
             update(key, entry, page, info);
             return Response.noContent().build();
@@ -228,8 +246,12 @@ public class PagesFeed {
         }
         //updating metadata.
         Link up = entry.getLink("up");
-        if (!entryFromPage.getLink("up").equals(up)) {
+        if (entryFromPage.getLink("up") != null && !entryFromPage.getLink("up").equals(up)) {
             throw new IllegalArgumentException(String.format("You are not allowed to move stuff around! (Yet) Parent must not change. Expected %s", entryFromPage.getLink("up")));
+        }
+
+        for (Category cat : entry.getCategories(ConfluenceUtil.CONFLUENCE_LABEL_SCHEME)) {
+            services.getLabelManager().addLabel(page, ConfluenceUtil.createLabel(cat));
         }
         //TODO: Consider adding support for moving stuff around... Setting the parent etc.
         DefaultSaveContext context = new DefaultSaveContext();
@@ -291,6 +313,13 @@ public class PagesFeed {
         entry.setUpdated(page.getLastModificationDate());
         entry.setPublished(page.getCreationDate());
         entry.setContentElement(getContent(page, hostAndPort, edit));
+
+        List<Label> labels = page.getLabels();
+        for (Label label : labels) {
+            if (label.getNamespace().getPrefix().equals(Namespace.GLOBAL.getPrefix())) {
+                entry.addCategory(ConfluenceUtil.createCategoryLabel(label));
+            }
+        }
 
         return entry;
     }

@@ -16,6 +16,8 @@
 
 package net.hamnaberg.confluence.atompub;
 
+import com.atlassian.confluence.labels.Label;
+import com.atlassian.confluence.labels.Namespace;
 import org.apache.abdera.Abdera;
 import org.apache.abdera.model.Category;
 import org.apache.abdera.model.Entry;
@@ -35,6 +37,7 @@ public final class ConfluenceUtil {
     public static final String SPACE_TERM = "space";
     public static final String COMMENT_TERM = "comment";
     public static final String CONFLUENCE_CATEGORY_SCHEME = "urn:confluence:category";
+    public static final String CONFLUENCE_LABEL_SCHEME = "urn:confluence:label";
 
     private ConfluenceUtil(){}
 
@@ -43,6 +46,18 @@ public final class ConfluenceUtil {
         category.setScheme(CONFLUENCE_CATEGORY_SCHEME);
         category.setTerm(name);
         return category;
+    }
+
+    public static Category createCategoryLabel(Label label) {
+        Category category = Abdera.getInstance().getFactory().newCategory();
+        category.setScheme(CONFLUENCE_LABEL_SCHEME);
+        category.setTerm(label.getName());
+        category.setLabel(label.getDisplayTitle());
+        return category;
+    }
+
+    public static Label createLabel(Category cat) {
+        return new Label(cat.getTerm(), Namespace.GLOBAL);
     }
 
     public static void validateCategories(Entry entry, Category expected) {

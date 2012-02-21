@@ -16,6 +16,7 @@
 
 package net.hamnaberg.confluence.atompub;
 
+import com.atlassian.confluence.labels.LabelManager;
 import com.atlassian.confluence.pages.PageManager;
 import com.atlassian.confluence.search.v2.SearchManager;
 import com.atlassian.confluence.security.PermissionManager;
@@ -32,21 +33,23 @@ import net.hamnaberg.confluence.admin.ConfigurationAccessor;
  * Time: 8:04 PM
  * To change this template use File | Settings | File Templates.
  */
-public class ConfluenceServices {
+public final class ConfluenceServices {
     private final PageManager pageManager;
     private final SpaceManager spaceManager;
     private final WikiStyleRenderer wikiStyleRenderer;
     private final SearchManager searchManager;
     private final PermissionManager permissionManager;
     private final ConfigurationAccessor configurationAccessor;
+    private final LabelManager labelManager;
 
-    public ConfluenceServices(PageManager pageManager, SpaceManager spaceManager, WikiStyleRenderer wikiStyleRenderer, SearchManager searchManager, PermissionManager permissionManager, TransactionTemplate transactionTemplate, PluginSettingsFactory pluginSettingsFactory) {
+    public ConfluenceServices(PageManager pageManager, SpaceManager spaceManager, WikiStyleRenderer wikiStyleRenderer, SearchManager searchManager, PermissionManager permissionManager, TransactionTemplate transactionTemplate, PluginSettingsFactory pluginSettingsFactory, LabelManager labelMananger) {
         this.pageManager = pageManager;
         this.spaceManager = spaceManager;
         this.wikiStyleRenderer = wikiStyleRenderer;
         this.searchManager = searchManager;
         this.permissionManager = permissionManager;
         this.configurationAccessor = new ConfigurationAccessor(transactionTemplate, pluginSettingsFactory);
+        this.labelManager = labelMananger;
     }
 
     public PageManager getPageManager() {
@@ -71,5 +74,9 @@ public class ConfluenceServices {
 
     public ConfigurationAccessor getConfigurationAccessor() {
         return configurationAccessor;
+    }
+
+    public LabelManager getLabelManager() {
+        return labelManager;
     }
 }
