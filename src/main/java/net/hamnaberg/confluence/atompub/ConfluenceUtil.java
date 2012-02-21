@@ -19,7 +19,6 @@ package net.hamnaberg.confluence.atompub;
 import org.apache.abdera.Abdera;
 import org.apache.abdera.model.Category;
 import org.apache.abdera.model.Entry;
-import org.apache.commons.lang.StringUtils;
 
 import java.util.List;
 
@@ -48,7 +47,14 @@ public final class ConfluenceUtil {
 
     public static void validateCategories(Entry entry, Category expected) {
         List<Category> categories = entry.getCategories(CONFLUENCE_CATEGORY_SCHEME);
-        if (!categories.contains(expected)) {
+        boolean found = false;
+        for (Category category : categories) {
+            if (category.getScheme().equals(expected.getScheme()) && category.getTerm().equals(expected.getTerm())) {
+                found = true;
+                break;
+            }
+        }
+        if (!found) {
             throw new IllegalArgumentException(String.format("No category matching %s found", expected));
         }
     }
