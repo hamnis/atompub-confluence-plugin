@@ -155,9 +155,8 @@ public class PagesFeed {
 
     @Path("{id}/edit")
     @PUT
-    public Response updatePage(@PathParam("key") String key, @PathParam("id") long id, @Context UriInfo info, InputStream stream) {
+    public Response updatePage(@PathParam("key") String key, @PathParam("id") long id, @HeaderParam("If-Unmodified-Since") Date lastMod, @Context UriInfo info, @Context Request request, InputStream stream) {
         User user = AuthenticatedUserThreadLocal.getUser();
-
         Page page = services.getPageManager().getPage(id);
         if (page == null) {
             throw new IllegalArgumentException(String.format("No page with id %s found", id));
@@ -165,7 +164,14 @@ public class PagesFeed {
         if (!page.getSpaceKey().equals(key)) {
             throw new IllegalArgumentException("Trying to get a page which does not belong in the space");
         }
+        if (lastMod == null) {
+            return Response.status(428).type("text/plain").entity("Precondition required: You need to include a If-Unmodified-Since header").build();
+        }
         if (services.getPermissionManager().hasPermission(user, Permission.EDIT, page)) {
+            Response.ResponseBuilder preconditions = request.evaluatePreconditions(page.getLastModificationDate());
+            if (preconditions != null) {
+                return preconditions.build();
+            }
             Document<Entry> doc = abdera.getParser().parse(stream);
             Entry entry = doc.getRoot();
             update(key, entry, page, info);
@@ -265,11 +271,11 @@ public class PagesFeed {
             //http://tools.ietf.org/html/rfc4685 Atom threading
             Link link = entry.addLink(builder.clone().segment("children").build().toString(), "replies");
             link.setAttributeValue(new QName("http://purl.org/syndication/thread/1.0", "count", "thr"), String.valueOf(page.getChildren().size()));
-            //Add rel="feed" to entry
         }
         Link link = entry.addLink(UriBuilder.fromUri(hostAndPort).path(page.getUrlPath()).build().toString(), Link.REL_ALTERNATE);
         link.setMimeType("text/html");
         entry.addLink(builder.build().toString(), Link.REL_SELF);
+        entry.addLink(spaceURIBuilder.clone().build().toString(), "collection");
         entry.addLink(builder.clone().segment("edit").build().toString(), Link.REL_EDIT);
         entry.addCategory(ConfluenceUtil.createCategory(ConfluenceUtil.PAGE_TERM));
         entry.setTitle(page.getDisplayTitle());
@@ -278,13 +284,14 @@ public class PagesFeed {
         if (name == null) {
             name = "Confluence";
         }
+
         entry.addAuthor(name);
         entry.setId("urn:confluence:page:id:" + page.getIdAsString());
         entry.setEdited(page.getLastModificationDate());
         entry.setUpdated(page.getLastModificationDate());
         entry.setPublished(page.getCreationDate());
         entry.setContentElement(getContent(page, hostAndPort, edit));
-        //page.isDeleted() add a tombstone here.
+
         return entry;
     }
 

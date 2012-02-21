@@ -41,10 +41,7 @@ import javax.ws.rs.*;
 import javax.ws.rs.core.*;
 import java.io.InputStream;
 import java.net.URI;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.List;
-import java.util.TreeSet;
+import java.util.*;
 
 /**
 ' * Created by IntelliJ IDEA.
@@ -174,7 +171,7 @@ public class NewsFeed {
 
     @Path("{id}/edit")
     @PUT
-    public Response updateItem(@PathParam("key") String key, @PathParam("id") long id, @Context UriInfo info, InputStream stream) {
+    public Response updateItem(@PathParam("key") String key, @PathParam("id") long id, @HeaderParam("If-Unmodified-Since") Date lastMod, @Context Request request, @Context UriInfo info, InputStream stream) {
         User user = AuthenticatedUserThreadLocal.getUser();
 
         BlogPost post = services.getPageManager().getBlogPost(id);
@@ -184,7 +181,14 @@ public class NewsFeed {
         if (!post.getSpaceKey().equals(key)) {
             throw new IllegalArgumentException("Trying to get a page which does not belong in the space");
         }
+        if (lastMod == null) {
+            return Response.status(428).type("text/plain").entity("Precondition required: You need to include a If-Unmodified-Since header").build();
+        }
         if (services.getPermissionManager().hasPermission(user, Permission.EDIT, post)) {
+            Response.ResponseBuilder preconditions = request.evaluatePreconditions(post.getLastModificationDate());
+            if (preconditions != null) {
+                return preconditions.build();
+            }
             Document<Entry> doc = abdera.getParser().parse(stream);
             Entry entry = doc.getRoot();
             update(key, entry, post, info);
