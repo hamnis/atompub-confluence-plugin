@@ -53,7 +53,6 @@ import java.util.*;
 @Consumes("application/atom+xml")
 @AnonymousAllowed
 public class PagesFeed {
-    private static final int PAGE_SIZE = 50;
     private static final String PAGES_SEGMENT = "pages";
 
     private TidyCleaner tidyCleaner;
@@ -66,7 +65,11 @@ public class PagesFeed {
     }
 
     @GET
-    public Response pages(@PathParam("key") String spaceKey, @Context UriInfo info, @QueryParam("pw") int pageNo, @QueryParam("sort-enabled") @DefaultValue("true") boolean sortEnabled) {
+    public Response pages(@PathParam("key") String spaceKey,
+                          @Context UriInfo info,
+                          @QueryParam("pw") int pageNo,
+                          @QueryParam("sort-enabled") @DefaultValue("true") boolean sortEnabled,
+                          @QueryParam("page-size") @DefaultValue("50") int pageSize) {
         User user = AuthenticatedUserThreadLocal.getUser();
         URI path = info.getBaseUriBuilder().replacePath("").build();
         Space space = services.getSpaceManager().getSpace(spaceKey);
@@ -78,8 +81,8 @@ public class PagesFeed {
         }
         ListBuilder<Page> topLevelPagesBuilder = services.getPageManager().getTopLevelPagesBuilder(space);
         int availableSize = topLevelPagesBuilder.getAvailableSize(); //todo: this may be incorrect
-        PagedResult result = new PagedResult(availableSize, pageNo, PAGE_SIZE, info.getBaseUriBuilder());
-        List<Page> pages = filter(user, topLevelPagesBuilder.getPage(result.getCurrentIndex(), PAGE_SIZE), sortEnabled);
+        PagedResult result = new PagedResult(availableSize, pageNo, pageSize, info.getBaseUriBuilder());
+        List<Page> pages = filter(user, topLevelPagesBuilder.getPage(result.getCurrentIndex(), pageSize), sortEnabled);
         Feed feed = makeFeed(space, pages, info.getBaseUriBuilder(), path);
         result.populate(feed);
         CacheControl cc = services.getConfigurationAccessor().getConfig().getPageFeed().toCacheControl();
