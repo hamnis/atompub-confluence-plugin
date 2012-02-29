@@ -66,12 +66,12 @@ public class PagesFeed {
     }
 
     @GET
-    public Response pages(@PathParam("key") String key, @Context UriInfo info, @QueryParam("pw") int pageNo, @QueryParam("sort-enabled") @DefaultValue("true") boolean sortEnabled) {
+    public Response pages(@PathParam("key") String spaceKey, @Context UriInfo info, @QueryParam("pw") int pageNo, @QueryParam("sort-enabled") @DefaultValue("true") boolean sortEnabled) {
         User user = AuthenticatedUserThreadLocal.getUser();
         URI path = info.getBaseUriBuilder().replacePath("").build();
-        Space space = services.getSpaceManager().getSpace(key);
+        Space space = services.getSpaceManager().getSpace(spaceKey);
         if (space == null) {
-            throw new IllegalArgumentException(String.format("No space called %s found", key));
+            throw new IllegalArgumentException(String.format("No space called %s found", spaceKey));
         }
         if (pageNo < 1) {
             pageNo = 1;
