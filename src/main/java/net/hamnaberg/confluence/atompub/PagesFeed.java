@@ -32,11 +32,11 @@ import com.atlassian.renderer.RenderContextOutputType;
 import com.atlassian.user.User;
 import org.apache.abdera.Abdera;
 import org.apache.abdera.model.*;
+import org.apache.abdera.model.Collection;
 import org.apache.abdera.parser.ParserOptions;
 
 import javax.ws.rs.*;
 import javax.ws.rs.core.*;
-import javax.xml.namespace.QName;
 import java.io.InputStream;
 import java.net.URI;
 import java.util.*;
@@ -266,7 +266,7 @@ public class PagesFeed {
         if (parent instanceof Page) {
             Page page = (Page) parent;
             spaceURIBuilder = getResourceURIBuilder(baseURIBuilder).clone().segment(page.getSpaceKey());
-            self = getResourceURIBuilder(baseURIBuilder).clone().segment(page.getSpaceKey()).segment(PAGES_SEGMENT).segment(page.getIdAsString()).build();
+            self = getResourceURIBuilder(baseURIBuilder).clone().segment(page.getSpaceKey()).segment(PAGES_SEGMENT).segment(page.getIdAsString(), "children").build();
             feed.setTitle("Children of " + ((Page) parent).getDisplayTitle());
             feed.setId("urn:confluence:page:id:" + parent.getId());
         } else if (parent instanceof Space) {
@@ -289,11 +289,6 @@ public class PagesFeed {
     private Entry createEntryFromPage(UriBuilder spaceURIBuilder, Page page, URI hostAndPort, boolean edit) {
         Entry entry = abdera.newEntry();
         UriBuilder builder = spaceURIBuilder.clone().segment(PAGES_SEGMENT).segment(page.getIdAsString());
-        if (page.hasChildren()) {
-            //http://tools.ietf.org/html/rfc4685 Atom threading
-            Link link = entry.addLink(builder.clone().segment("children").build().toString(), "replies");
-            link.setAttributeValue(new QName("http://purl.org/syndication/thread/1.0", "count", "thr"), String.valueOf(page.getChildren().size()));
-        }
         Link link = entry.addLink(UriBuilder.fromUri(hostAndPort).path(page.getUrlPath()).build().toString(), Link.REL_ALTERNATE);
         link.setMimeType("text/html");
         entry.addLink(builder.build().toString(), Link.REL_SELF);
@@ -319,6 +314,15 @@ public class PagesFeed {
             if (label.getNamespace().getPrefix().equals(Namespace.GLOBAL.getPrefix())) {
                 entry.addCategory(ConfluenceUtil.createCategoryLabel(label));
             }
+        }
+
+        if (page.hasChildren()) {
+            //http://tools.ietf.org/html/rfc4685 Atom threading
+            Collection collection = abdera.getFactory().newCollection();
+            collection.acceptsNothing();
+            collection.setHref(builder.clone().segment("children").build().toString());
+            collection.setTitle("children");
+            entry.addExtension(collection);
         }
 
         return entry;
