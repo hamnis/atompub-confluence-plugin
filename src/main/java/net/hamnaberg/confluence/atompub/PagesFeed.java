@@ -66,7 +66,7 @@ public class PagesFeed {
     }
 
     @GET
-    public Response pages(@PathParam("key") String key, @Context UriInfo info, @QueryParam("pw") int pageNo) {
+    public Response pages(@PathParam("key") String key, @Context UriInfo info, @QueryParam("pw") int pageNo, @QueryParam("sort-enabled") @DefaultValue("true") boolean sortEnabled) {
         User user = AuthenticatedUserThreadLocal.getUser();
         URI path = info.getBaseUriBuilder().replacePath("").build();
         Space space = services.getSpaceManager().getSpace(key);
@@ -79,7 +79,7 @@ public class PagesFeed {
         ListBuilder<Page> topLevelPagesBuilder = services.getPageManager().getTopLevelPagesBuilder(space);
         int availableSize = topLevelPagesBuilder.getAvailableSize(); //todo: this may be incorrect
         PagedResult result = new PagedResult(availableSize, pageNo, PAGE_SIZE, info.getBaseUriBuilder());
-        List<Page> pages = filter(user, topLevelPagesBuilder.getPage(result.getCurrentIndex(), PAGE_SIZE));
+        List<Page> pages = filter(user, topLevelPagesBuilder.getPage(result.getCurrentIndex(), PAGE_SIZE), sortEnabled);
         Feed feed = makeFeed(space, pages, info.getBaseUriBuilder(), path);
         result.populate(feed);
         CacheControl cc = services.getConfigurationAccessor().getConfig().getPageFeed().toCacheControl();
@@ -200,7 +200,7 @@ public class PagesFeed {
 
     @Path("{id}/children")
     @GET
-    public Response children(@PathParam("key") String key, @PathParam("id") long id, @Context UriInfo info) {
+    public Response children(@PathParam("key") String key, @PathParam("id") long id, @Context UriInfo info, @QueryParam("sort-enabled") @DefaultValue("true") boolean sortEnabled) {
         User user = AuthenticatedUserThreadLocal.getUser();
         URI path = info.getBaseUriBuilder().replacePath("").build();
         Page page = services.getPageManager().getPage(id);
@@ -212,7 +212,7 @@ public class PagesFeed {
         }
         if (services.getPermissionManager().hasPermission(user, Permission.VIEW, page)) {
             UriBuilder resourceURIBuilder = getResourceURIBuilder(info.getBaseUriBuilder()).segment(key);
-            List<Page> children = filter(user, page.getChildren());
+            List<Page> children = filter(user, page.getChildren(), sortEnabled);
             Feed feed = makeFeed(page, children, resourceURIBuilder, path);
             CacheControl cc = services.getConfigurationAccessor().getConfig().getPageFeed().toCacheControl();
             return Response.ok(new AbderaResponseOutput(feed)).cacheControl(cc).build();
@@ -352,14 +352,16 @@ public class PagesFeed {
         return baseUriBuilder.clone().path(SpaceFeed.class);
     }
 
-    private List<Page> filter(User user, List<Page> page) {
+    private List<Page> filter(User user, List<Page> page, boolean sort) {
         List<Page> pages = new ArrayList<Page>();
         for (Page p : page) {
             if (services.getPermissionManager().hasPermission(user, Permission.VIEW, p)) {
                 pages.add(p);
             }
         }
-        Collections.sort(pages, Collections.reverseOrder(new LastModificationDateComparator()));
+        if (sort) {
+            Collections.sort(pages, Collections.reverseOrder(new LastModificationDateComparator()));
+        }
         return pages;
     }
 }
