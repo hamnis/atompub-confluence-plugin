@@ -340,8 +340,10 @@ public class PagesFeed {
         } else {
             PageContext context = page.toPageContext();
             String origType = context.getOutputType();
-            context.setOutputType(RenderContextOutputType.HTML_EXPORT);
+            context.setOutputType(RenderContextOutputType.FEED);
             context.setSiteRoot(baseURI.toString());
+            context.setImagePath(baseURI.toString());
+            context.setBaseUrl(baseURI.toString());
             String value = services.getWikiStyleRenderer().convertWikiToXHtml(context, page.getContent());
             context.setOutputType(origType);
             content.setContentType(Content.Type.XHTML);

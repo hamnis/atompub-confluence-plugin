@@ -178,7 +178,7 @@ public class NewsFeed {
         if (services.getPermissionManager().hasPermission(user, edit ? Permission.EDIT : Permission.VIEW, post)) {
             UriBuilder resourceURIBuilder = getResourceURIBuilder(info.getBaseUriBuilder()).segment(key);
             CacheControl cc = services.getConfigurationAccessor().getConfig().getNews().toCacheControl();
-            return Response.ok(new AbderaResponseOutput(createEntryFromPage(resourceURIBuilder, post, path, edit))).cacheControl(cc).build();
+            return Response.ok(new AbderaResponseOutput(createEntryFromBlogPost(resourceURIBuilder, post, path, edit))).cacheControl(cc).build();
         }
         return Response.status(Response.Status.FORBIDDEN).build();
     }
@@ -217,7 +217,7 @@ public class NewsFeed {
     private void update(String key, Entry entry, BlogPost post, UriInfo info) {
         URI path = info.getBaseUriBuilder().replacePath("").build();
         UriBuilder resourceURIBuilder = getResourceURIBuilder(info.getBaseUriBuilder()).segment(key);
-        Entry entryFromPage = createEntryFromPage(resourceURIBuilder, post, path, true);
+        Entry entryFromPage = createEntryFromBlogPost(resourceURIBuilder, post, path, true);
         if (!entryFromPage.getId().equals(entry.getId())) {
             throw new IllegalArgumentException("Wrong ID specified");
         }
@@ -263,12 +263,12 @@ public class NewsFeed {
         feed.addLink(spaceURIBuilder.build().toString(), Link.REL_SELF);
         feed.addLink(getResourceURIBuilder(baseURIBuilder).build().toString(), "up");
         for (BlogPost page : pages) {
-            feed.addEntry(createEntryFromPage(spaceURIBuilder, page, hostAndPort, false));
+            feed.addEntry(createEntryFromBlogPost(spaceURIBuilder, page, hostAndPort, false));
         }
         return feed;
     }
 
-    private Entry createEntryFromPage(UriBuilder spaceURIBuilder, BlogPost post, URI hostAndPort, boolean edit) {
+    private Entry createEntryFromBlogPost(UriBuilder spaceURIBuilder, BlogPost post, URI hostAndPort, boolean edit) {
         Entry entry = abdera.newEntry();
         UriBuilder builder = spaceURIBuilder.clone().segment(NEWS_SEGMENT).segment(post.getIdAsString());
         Link link = entry.addLink(UriBuilder.fromUri(hostAndPort).path(post.getUrlPath()).build().toString(), Link.REL_ALTERNATE);
@@ -308,8 +308,10 @@ public class NewsFeed {
         } else {
             PageContext context = post.toPageContext();
             String origType = context.getOutputType();
-            context.setOutputType(RenderContextOutputType.HTML_EXPORT);
+            context.setOutputType(RenderContextOutputType.FEED);
             context.setSiteRoot(baseURI.toString());
+            context.setImagePath(baseURI.toString());
+            context.setBaseUrl(baseURI.toString());
             String value = services.getWikiStyleRenderer().convertWikiToXHtml(context, post.getContent());
             context.setOutputType(origType);
             content.setContentType(Content.Type.XHTML);
