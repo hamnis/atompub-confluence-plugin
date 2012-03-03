@@ -13,3 +13,5 @@ nbproject
 private
 profiles.xml
 target
+.idea
+.DS_Store
