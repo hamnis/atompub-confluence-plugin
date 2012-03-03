@@ -21,6 +21,7 @@ import com.atlassian.confluence.core.DefaultSaveContext;
 import com.atlassian.confluence.core.ListBuilder;
 import com.atlassian.confluence.labels.Label;
 import com.atlassian.confluence.labels.Namespace;
+import com.atlassian.confluence.pages.Attachment;
 import com.atlassian.confluence.pages.Page;
 import com.atlassian.confluence.renderer.PageContext;
 import com.atlassian.confluence.security.Permission;
@@ -83,7 +84,7 @@ public class PagesFeed {
         int availableSize = topLevelPagesBuilder.getAvailableSize(); //todo: this may be incorrect
         PagedResult result = new PagedResult(availableSize, pageNo, pageSize, info.getBaseUriBuilder());
         List<Page> pages = filter(user, topLevelPagesBuilder.getPage(result.getCurrentIndex(), pageSize), sortEnabled);
-        Feed feed = makeFeed(space, pages, info.getBaseUriBuilder(), path);
+        Feed feed = makeFeed(space, pages, info.getBaseUriBuilder());
         result.populate(feed);
         CacheControl cc = services.getConfigurationAccessor().getConfig().getPageFeed().toCacheControl();
         return Response.ok(new AbderaResponseOutput(feed)).cacheControl(cc).build();
@@ -149,7 +150,6 @@ public class PagesFeed {
 
     private Response getPage(String key, long id, UriInfo info, boolean edit) {
         User user = AuthenticatedUserThreadLocal.getUser();
-        URI path = info.getBaseUriBuilder().replacePath("").build();
         Page page = services.getPageManager().getPage(id);
 
         if (page == null) {
@@ -161,7 +161,7 @@ public class PagesFeed {
         if (services.getPermissionManager().hasPermission(user, edit ? Permission.EDIT : Permission.VIEW, page)) {
             UriBuilder resourceURIBuilder = getResourceURIBuilder(info.getBaseUriBuilder()).segment(key);
             CacheControl cc = services.getConfigurationAccessor().getConfig().getPage().toCacheControl();
-            return Response.ok(new AbderaResponseOutput(createEntryFromPage(resourceURIBuilder, page, path, edit))).
+            return Response.ok(new AbderaResponseOutput(createEntryFromPage(resourceURIBuilder, page, edit))).
                     cacheControl(cc).
                     lastModified(page.getLastModificationDate()).
                     build();
@@ -205,7 +205,6 @@ public class PagesFeed {
     @GET
     public Response children(@PathParam("key") String key, @PathParam("id") long id, @Context UriInfo info, @QueryParam("sort-enabled") @DefaultValue("true") boolean sortEnabled) {
         User user = AuthenticatedUserThreadLocal.getUser();
-        URI path = info.getBaseUriBuilder().replacePath("").build();
         Page page = services.getPageManager().getPage(id);
         if (page == null) {
             throw new IllegalArgumentException(String.format("No page with id %s found", id));
@@ -216,7 +215,26 @@ public class PagesFeed {
         if (services.getPermissionManager().hasPermission(user, Permission.VIEW, page)) {
             UriBuilder resourceURIBuilder = getResourceURIBuilder(info.getBaseUriBuilder()).segment(key);
             List<Page> children = filter(user, page.getChildren(), sortEnabled);
-            Feed feed = makeFeed(page, children, resourceURIBuilder, path);
+            Feed feed = makeFeed(page, children, resourceURIBuilder);
+            CacheControl cc = services.getConfigurationAccessor().getConfig().getPageFeed().toCacheControl();
+            return Response.ok(new AbderaResponseOutput(feed)).cacheControl(cc).build();
+        }
+        return Response.status(Response.Status.FORBIDDEN).build();
+    }
+
+    @Path("{id}/attachments")
+    @GET
+    public Response attachments(@PathParam("key") String key, @PathParam("id") long id, @Context UriInfo info) {
+        User user = AuthenticatedUserThreadLocal.getUser();
+        Page page = services.getPageManager().getPage(id);
+        if (page == null) {
+            throw new IllegalArgumentException(String.format("No page with id %s found", id));
+        }
+        if (!page.getSpaceKey().equals(key)) {
+            throw new IllegalArgumentException("Trying to get a page which does not belong in the space");
+        }
+        if (services.getPermissionManager().hasPermission(user, Permission.VIEW, page)) {
+            Feed feed = new AttachmentFeed(services).buildFeed(page.getAttachments(), info);
             CacheControl cc = services.getConfigurationAccessor().getConfig().getPageFeed().toCacheControl();
             return Response.ok(new AbderaResponseOutput(feed)).cacheControl(cc).build();
         }
@@ -224,9 +242,8 @@ public class PagesFeed {
     }
 
     private void update(String key, Entry entry, Page page, UriInfo info) {
-        URI path = info.getBaseUriBuilder().replacePath("").build();
         UriBuilder resourceURIBuilder = getResourceURIBuilder(info.getBaseUriBuilder()).segment(key);
-        Entry entryFromPage = createEntryFromPage(resourceURIBuilder, page, path, false);
+        Entry entryFromPage = createEntryFromPage(resourceURIBuilder, page, false);
         if (!entryFromPage.getId().equals(entry.getId())) {
             throw new IllegalArgumentException("Wrong ID specified");
         }
@@ -262,7 +279,7 @@ public class PagesFeed {
         services.getPageManager().saveContentEntity(page, context);
     }
 
-    private Feed makeFeed(EntityObject parent, List<Page> pages, UriBuilder baseURIBuilder, URI hostAndPort) {
+    private Feed makeFeed(EntityObject parent, List<Page> pages, UriBuilder baseURIBuilder) {
         Feed feed = abdera.newFeed();
         URI self;
         UriBuilder spaceURIBuilder;
@@ -284,15 +301,15 @@ public class PagesFeed {
         feed.addLink(self.toString(), Link.REL_SELF);
         feed.addLink(getResourceURIBuilder(baseURIBuilder).build().toString(), "up");
         for (Page page : pages) {
-            feed.addEntry(createEntryFromPage(spaceURIBuilder, page, hostAndPort, false));
+            feed.addEntry(createEntryFromPage(spaceURIBuilder, page, false));
         }
         return feed;
     }
 
-    private Entry createEntryFromPage(UriBuilder spaceURIBuilder, Page page, URI hostAndPort, boolean edit) {
+    private Entry createEntryFromPage(UriBuilder spaceURIBuilder, Page page, boolean edit) {
         Entry entry = abdera.newEntry();
         UriBuilder builder = spaceURIBuilder.clone().segment(PAGES_SEGMENT).segment(page.getIdAsString());
-        Link link = entry.addLink(UriBuilder.fromUri(hostAndPort).path(page.getUrlPath()).build().toString(), Link.REL_ALTERNATE);
+        Link link = entry.addLink(UriBuilder.fromUri(services.getSettingsManager().getGlobalSettings().getBaseUrl()).path(page.getUrlPath()).build().toString(), Link.REL_ALTERNATE);
         link.setMimeType("text/html");
         entry.addLink(builder.build().toString(), Link.REL_SELF);
         entry.addLink(spaceURIBuilder.clone().build().toString(), "collection");
@@ -326,6 +343,12 @@ public class PagesFeed {
             collection.setHref(builder.clone().segment("children").build().toString());
             collection.setTitle("children");
             entry.addExtension(collection);
+        }
+        entry.addLink(builder.clone().segment("attachments").build().toString(), Link.REL_RELATED);
+
+        List<Attachment> attachments = page.getAttachments();
+        for (Attachment attachment : attachments) {
+            AttachmentFeed.createEnclosureLink(attachment, entry, services);
         }
 
         return entry;

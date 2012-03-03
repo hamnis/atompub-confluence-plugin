@@ -20,6 +20,7 @@ import com.atlassian.bonnie.Searchable;
 import com.atlassian.confluence.core.DefaultSaveContext;
 import com.atlassian.confluence.labels.Label;
 import com.atlassian.confluence.labels.Namespace;
+import com.atlassian.confluence.pages.Attachment;
 import com.atlassian.confluence.pages.BlogPost;
 import com.atlassian.confluence.renderer.PageContext;
 import com.atlassian.confluence.search.service.ContentTypeEnum;
@@ -43,7 +44,6 @@ import org.apache.abdera.parser.ParserOptions;
 import javax.ws.rs.*;
 import javax.ws.rs.core.*;
 import java.io.InputStream;
-import java.net.URI;
 import java.util.*;
 
 /**
@@ -74,7 +74,6 @@ public class NewsFeed {
     public Response news(@PathParam("key") String key, @Context UriInfo info, @QueryParam("pw") int pageNo) {
         User user = AuthenticatedUserThreadLocal.getUser();
         
-        URI path = info.getBaseUriBuilder().replacePath("").build();
         Space space = services.getSpaceManager().getSpace(key);
         if (space == null) {
             throw new IllegalArgumentException(String.format("No space called %s found", key));
@@ -99,7 +98,7 @@ public class NewsFeed {
                     pages.add((BlogPost) res);
                 }
             }
-            Feed feed = generate(space, pages, info.getBaseUriBuilder(), path);
+            Feed feed = generate(space, pages, info.getBaseUriBuilder());
             result.populate(feed);
             CacheControl cc = services.getConfigurationAccessor().getConfig().getNewsFeed().toCacheControl();
             return Response.ok(new AbderaResponseOutput(feed)).cacheControl(cc).build();
@@ -167,7 +166,6 @@ public class NewsFeed {
     private Response getItem(String key, long id, UriInfo info, boolean edit) {
         User user = AuthenticatedUserThreadLocal.getUser();
 
-        URI path = info.getBaseUriBuilder().replacePath("").build();
         BlogPost post = services.getPageManager().getBlogPost(id);
         if (post == null) {
             throw new IllegalArgumentException(String.format("No page with id %s found", id));
@@ -178,7 +176,7 @@ public class NewsFeed {
         if (services.getPermissionManager().hasPermission(user, edit ? Permission.EDIT : Permission.VIEW, post)) {
             UriBuilder resourceURIBuilder = getResourceURIBuilder(info.getBaseUriBuilder()).segment(key);
             CacheControl cc = services.getConfigurationAccessor().getConfig().getNews().toCacheControl();
-            return Response.ok(new AbderaResponseOutput(createEntryFromBlogPost(resourceURIBuilder, post, path, edit))).cacheControl(cc).build();
+            return Response.ok(new AbderaResponseOutput(createEntryFromBlogPost(resourceURIBuilder, post, edit))).cacheControl(cc).build();
         }
         return Response.status(Response.Status.FORBIDDEN).build();
     }
@@ -214,10 +212,29 @@ public class NewsFeed {
         return Response.status(Response.Status.FORBIDDEN).build();
     }
 
+    @Path("{id}/attachments")
+    @GET
+    public Response attachments(@PathParam("key") String key, @PathParam("id") long id, @Context UriInfo info) {
+        User user = AuthenticatedUserThreadLocal.getUser();
+        BlogPost page = services.getPageManager().getBlogPost(id);
+        if (page == null) {
+            throw new IllegalArgumentException(String.format("No page with id %s found", id));
+        }
+        if (!page.getSpaceKey().equals(key)) {
+            throw new IllegalArgumentException("Trying to get a page which does not belong in the space");
+        }
+        if (services.getPermissionManager().hasPermission(user, Permission.VIEW, page)) {
+            Feed feed = new AttachmentFeed(services).buildFeed(page.getAttachments(), info);
+            CacheControl cc = services.getConfigurationAccessor().getConfig().getPageFeed().toCacheControl();
+            return Response.ok(new AbderaResponseOutput(feed)).cacheControl(cc).build();
+        }
+        return Response.status(Response.Status.FORBIDDEN).build();
+    }
+
+
     private void update(String key, Entry entry, BlogPost post, UriInfo info) {
-        URI path = info.getBaseUriBuilder().replacePath("").build();
         UriBuilder resourceURIBuilder = getResourceURIBuilder(info.getBaseUriBuilder()).segment(key);
-        Entry entryFromPage = createEntryFromBlogPost(resourceURIBuilder, post, path, true);
+        Entry entryFromPage = createEntryFromBlogPost(resourceURIBuilder, post, true);
         if (!entryFromPage.getId().equals(entry.getId())) {
             throw new IllegalArgumentException("Wrong ID specified");
         }
@@ -254,7 +271,7 @@ public class NewsFeed {
         services.getPageManager().saveContentEntity(post, context);
     }
 
-    private Feed generate(Space parent, List<BlogPost> pages, UriBuilder baseURIBuilder, URI hostAndPort) {
+    private Feed generate(Space parent, List<BlogPost> pages, UriBuilder baseURIBuilder) {
         Feed feed = abdera.newFeed();
         feed.setTitle(parent.getName());
         UriBuilder spaceURIBuilder = getResourceURIBuilder(baseURIBuilder).clone().segment(parent.getKey());
@@ -263,15 +280,15 @@ public class NewsFeed {
         feed.addLink(spaceURIBuilder.build().toString(), Link.REL_SELF);
         feed.addLink(getResourceURIBuilder(baseURIBuilder).build().toString(), "up");
         for (BlogPost page : pages) {
-            feed.addEntry(createEntryFromBlogPost(spaceURIBuilder, page, hostAndPort, false));
+            feed.addEntry(createEntryFromBlogPost(spaceURIBuilder, page, false));
         }
         return feed;
     }
 
-    private Entry createEntryFromBlogPost(UriBuilder spaceURIBuilder, BlogPost post, URI hostAndPort, boolean edit) {
+    private Entry createEntryFromBlogPost(UriBuilder spaceURIBuilder, BlogPost post, boolean edit) {
         Entry entry = abdera.newEntry();
         UriBuilder builder = spaceURIBuilder.clone().segment(NEWS_SEGMENT).segment(post.getIdAsString());
-        Link link = entry.addLink(UriBuilder.fromUri(hostAndPort).path(post.getUrlPath()).build().toString(), Link.REL_ALTERNATE);
+        Link link = entry.addLink(UriBuilder.fromUri(services.getSettingsManager().getGlobalSettings().getBaseUrl()).path(post.getUrlPath()).build().toString(), Link.REL_ALTERNATE);
         link.setMimeType("text/html");
         entry.addLink(builder.build().toString(), Link.REL_SELF);
         entry.addLink(builder.clone().segment("edit").build().toString(), Link.REL_SELF);
@@ -295,6 +312,13 @@ public class NewsFeed {
                 entry.addCategory(ConfluenceUtil.createCategoryLabel(label));
             }
         }
+        entry.addLink(builder.clone().segment("attachments").build().toString(), Link.REL_RELATED);
+
+        List<Attachment> attachments = post.getAttachments();
+        for (Attachment attachment : attachments) {
+            AttachmentFeed.createEnclosureLink(attachment, entry, services);
+        }
+
         //page.isDeleted() add a tombstone here.
         return entry;
     }
