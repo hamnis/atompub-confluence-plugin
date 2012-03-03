@@ -20,6 +20,7 @@ import com.atlassian.confluence.labels.LabelManager;
 import com.atlassian.confluence.pages.PageManager;
 import com.atlassian.confluence.search.v2.SearchManager;
 import com.atlassian.confluence.security.PermissionManager;
+import com.atlassian.confluence.setup.settings.SettingsManager;
 import com.atlassian.confluence.spaces.SpaceManager;
 import com.atlassian.renderer.WikiStyleRenderer;
 import com.atlassian.sal.api.pluginsettings.PluginSettingsFactory;
@@ -39,15 +40,17 @@ public final class ConfluenceServices {
     private final WikiStyleRenderer wikiStyleRenderer;
     private final SearchManager searchManager;
     private final PermissionManager permissionManager;
+    private SettingsManager settingsManager;
     private final ConfigurationAccessor configurationAccessor;
     private final LabelManager labelManager;
 
-    public ConfluenceServices(PageManager pageManager, SpaceManager spaceManager, WikiStyleRenderer wikiStyleRenderer, SearchManager searchManager, PermissionManager permissionManager, TransactionTemplate transactionTemplate, PluginSettingsFactory pluginSettingsFactory, LabelManager labelMananger) {
+    public ConfluenceServices(PageManager pageManager, SpaceManager spaceManager, WikiStyleRenderer wikiStyleRenderer, SearchManager searchManager, PermissionManager permissionManager, TransactionTemplate transactionTemplate, PluginSettingsFactory pluginSettingsFactory, LabelManager labelMananger, SettingsManager settingsManager) {
         this.pageManager = pageManager;
         this.spaceManager = spaceManager;
         this.wikiStyleRenderer = wikiStyleRenderer;
         this.searchManager = searchManager;
         this.permissionManager = permissionManager;
+        this.settingsManager = settingsManager;
         this.configurationAccessor = new ConfigurationAccessor(transactionTemplate, pluginSettingsFactory);
         this.labelManager = labelMananger;
     }
@@ -78,5 +81,9 @@ public final class ConfluenceServices {
 
     public LabelManager getLabelManager() {
         return labelManager;
+    }
+
+    public SettingsManager getSettingsManager() {
+        return settingsManager;
     }
 }

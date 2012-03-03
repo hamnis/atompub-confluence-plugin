@@ -310,7 +310,7 @@ public class PagesFeed {
         entry.setEdited(page.getLastModificationDate());
         entry.setUpdated(page.getLastModificationDate());
         entry.setPublished(page.getCreationDate());
-        entry.setContentElement(getContent(page, hostAndPort, edit));
+        entry.setContentElement(getContent(page, edit));
 
         List<Label> labels = page.getLabels();
         for (Label label : labels) {
@@ -331,8 +331,9 @@ public class PagesFeed {
         return entry;
     }
 
-    private Content getContent(Page page, URI baseURI, boolean edit) {
+    private Content getContent(Page page, boolean edit) {
         Content content = abdera.getFactory().newContent();
+        String baseUrl = services.getSettingsManager().getGlobalSettings().getBaseUrl();
 
         if (edit) {
             content.setContentType(Content.Type.TEXT);
@@ -341,9 +342,9 @@ public class PagesFeed {
             PageContext context = page.toPageContext();
             String origType = context.getOutputType();
             context.setOutputType(RenderContextOutputType.FEED);
-            context.setSiteRoot(baseURI.toString());
-            context.setImagePath(baseURI.toString());
-            context.setBaseUrl(baseURI.toString());
+            context.setSiteRoot(baseUrl);
+            context.setImagePath(baseUrl);
+            context.setBaseUrl(baseUrl);
             String value = services.getWikiStyleRenderer().convertWikiToXHtml(context, page.getContent());
             context.setOutputType(origType);
             content.setContentType(Content.Type.XHTML);
