@@ -213,9 +213,8 @@ public class PagesFeed {
             throw new IllegalArgumentException("Trying to get a page which does not belong in the space");
         }
         if (services.getPermissionManager().hasPermission(user, Permission.VIEW, page)) {
-            UriBuilder resourceURIBuilder = getResourceURIBuilder(info.getBaseUriBuilder()).segment(key);
             List<Page> children = filter(user, page.getChildren(), sortEnabled);
-            Feed feed = makeFeed(page, children, resourceURIBuilder);
+            Feed feed = makeFeed(page, children, info.getBaseUriBuilder());
             CacheControl cc = services.getConfigurationAccessor().getConfig().getPageFeed().toCacheControl();
             return Response.ok(new AbderaResponseOutput(feed)).cacheControl(cc).build();
         }
