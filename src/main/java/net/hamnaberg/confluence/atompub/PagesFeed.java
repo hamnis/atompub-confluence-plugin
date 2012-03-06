@@ -69,7 +69,7 @@ public class PagesFeed {
     public Response pages(@PathParam("key") String spaceKey,
                           @Context UriInfo info,
                           @QueryParam("pw") int pageNo,
-                          @QueryParam("sort-enabled") @DefaultValue("true") boolean sortEnabled,
+                          @QueryParam("sort-enabled") @DefaultValue("false") boolean sortEnabled,
                           @QueryParam("page-size") @DefaultValue("50") int pageSize) {
         User user = AuthenticatedUserThreadLocal.getUser();
         URI path = info.getBaseUriBuilder().replacePath("").build();
@@ -203,7 +203,7 @@ public class PagesFeed {
 
     @Path("{id}/children")
     @GET
-    public Response children(@PathParam("key") String key, @PathParam("id") long id, @Context UriInfo info, @QueryParam("sort-enabled") @DefaultValue("true") boolean sortEnabled) {
+    public Response children(@PathParam("key") String key, @PathParam("id") long id, @Context UriInfo info, @QueryParam("sort-enabled") @DefaultValue("false") boolean sortEnabled) {
         User user = AuthenticatedUserThreadLocal.getUser();
         Page page = services.getPageManager().getPage(id);
         if (page == null) {
