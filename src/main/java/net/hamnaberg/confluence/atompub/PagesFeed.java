@@ -72,7 +72,6 @@ public class PagesFeed {
                           @QueryParam("sort-enabled") @DefaultValue("false") boolean sortEnabled,
                           @QueryParam("page-size") @DefaultValue("50") int pageSize) {
         User user = AuthenticatedUserThreadLocal.getUser();
-        URI path = info.getBaseUriBuilder().replacePath("").build();
         Space space = services.getSpaceManager().getSpace(spaceKey);
         if (space == null) {
             throw new IllegalArgumentException(String.format("No space called %s found", spaceKey));
